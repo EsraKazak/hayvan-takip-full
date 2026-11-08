@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ciftlik.hayvantakip.dto.AnimalCreateDto;
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
+import com.ciftlik.hayvantakip.dto.InseminationDto;
+import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.AnimalStatus;
 import com.ciftlik.hayvantakip.service.AnimalService;
 
@@ -53,5 +55,15 @@ public class AnimalController {
     @GetMapping("/section/{sectionId}")
     public ResponseEntity<List<AnimalResponseDto>> getAnimalsBySection(@PathVariable Long sectionId) {
         return ResponseEntity.ok(animalService.getAnimalsBySection(sectionId));
+    }
+
+    @PostMapping("/{Id}/vaccinations")
+    public ResponseEntity<VaccinationDto> addVaccination(@PathVariable Long Id, @RequestBody VaccinationDto dto) {
+        return ResponseEntity.ok(animalService.addVaccination(Id, dto));
+    }
+
+    @PostMapping("/{Id}/inseminations")
+    public ResponseEntity<InseminationDto> addInsemination(@PathVariable Long Id, @RequestBody InseminationDto dto) {
+        return ResponseEntity.ok(animalService.addInsemination(Id, dto));
     }
 }

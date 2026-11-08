@@ -3,6 +3,8 @@ import type {
   AnimalCreateDTO,
   AnimalResponseDTO,
   AnimalStatus,
+  InseminationDTO,
+  VaccinationDTO,
 } from "../types";
 
 export const animalApi = {
@@ -45,6 +47,30 @@ export const animalApi = {
       `/animals/${animalId}/status`,
       null,
       { params: { status } },
+    );
+    return response.data;
+  },
+
+  // src/api/animalApi.ts dosyasına eklenecek fonksiyonlar:
+
+  addVaccination: async (
+    animalId: number,
+    data: Omit<VaccinationDTO, "id">,
+  ): Promise<VaccinationDTO> => {
+    const response = await axiosClient.post<VaccinationDTO>(
+      `/animals/${animalId}/vaccinations`,
+      data,
+    );
+    return response.data;
+  },
+
+  addInsemination: async (
+    animalId: number,
+    data: Omit<InseminationDTO, "id">,
+  ): Promise<InseminationDTO> => {
+    const response = await axiosClient.post<InseminationDTO>(
+      `/animals/${animalId}/inseminations`,
+      data,
     );
     return response.data;
   },

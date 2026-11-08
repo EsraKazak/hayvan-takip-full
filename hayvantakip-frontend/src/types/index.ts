@@ -44,4 +44,22 @@ export interface AnimalResponseDTO {
   animalStatus: AnimalStatus;
   sectionName: string; //padok ismi
   motherTagNumber?: string | null; //opsiyonel, eğer hayvanın annesi biliniyorsa
+  vaccinations?: VaccinationDTO[];
+  inseminations?: InseminationDTO[];
+}
+
+export interface VaccinationDTO {
+  id: number;
+  vaccineName: string;
+  appliedDate: string;
+  nextDueDate?: string | null;
+  notes?: string | null;
+}
+
+export interface InseminationDTO {
+  id: number;
+  inseminationDate: string;
+  expectedBirthDate?: string | null;
+  status: string;
+  bullInfo?: string | null;
 }

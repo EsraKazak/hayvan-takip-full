@@ -5,8 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
+import com.ciftlik.hayvantakip.dto.InseminationDto;
 import com.ciftlik.hayvantakip.dto.SectionCreateDto;
 import com.ciftlik.hayvantakip.dto.SectionResponseDto;
+import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.Section;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.AnimalRepository;
@@ -52,6 +54,21 @@ public class SectionService {
                     Long motherId = (animal.getMother() != null) ? animal.getMother().getId() : null;
                     String motherTagNumber = (animal.getMother() != null) ? animal.getMother().getTagNumber() : null;
 
+                    List<VaccinationDto> vDtos = (animal.getVaccinationRecords() != null)
+                            ? animal.getVaccinationRecords().stream()
+                                    .map(v -> new VaccinationDto(v.getId(), v.getVaccineName(), v.getAppliedDate(),
+                                            v.getNextDueDate(), v.getNotes()))
+                                    .toList()
+                            : List.of();
+
+                    // Tohumlanma listesini DTO'ya dönüştür
+                    List<InseminationDto> iDtos = (animal.getInseminationRecords() != null)
+                            ? animal.getInseminationRecords().stream()
+                                    .map(i -> new InseminationDto(i.getId(), i.getInseminationDate(),
+                                            i.getExpectedBirthDate(), i.getStatus(), i.getBullInfo()))
+                                    .toList()
+                            : List.of();
+
                     return new AnimalResponseDto(
                             animal.getId(),
                             animal.getTagNumber(),
@@ -64,7 +81,9 @@ public class SectionService {
                             section.getId(),
                             section.getName(),
                             motherId,
-                            motherTagNumber);
+                            motherTagNumber,
+                            vDtos,
+                            iDtos);
                 }).toList()
                 : List.of();
 

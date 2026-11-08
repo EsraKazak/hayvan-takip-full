@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { sectionApi } from "../api/sectionApi";
-import type { SectionResponseDTO } from "../types";
-import { Plus, Users } from "lucide-react";
+import type { AnimalResponseDTO, SectionResponseDTO } from "../types";
+import { Plus, Users, Eye } from "lucide-react"; // 🔥 Eye ikonu eklendi
 import { toast } from "sonner";
+import { animalApi } from "../api/animalApi";
+import { SectionGridModal } from "../components/SectionGridModal"; // 🔥 Import eklendi
+import { AnimalDetailModal } from "../components/AnimalDetailModal"; // 🔥 Import eklendi
 
 export const SectionsPage: React.FC = () => {
   const [sections, setSections] = useState<SectionResponseDTO[]>([]);
@@ -14,11 +17,24 @@ export const SectionsPage: React.FC = () => {
   const [capacity, setCapacity] = useState<number>(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [allAnimals, setAllAnimals] = useState<AnimalResponseDTO[]>([]);
+  const [selectedGridSection, setSelectedGridSection] =
+    useState<SectionResponseDTO | null>(null);
+  const [selectedAnimalDetail, setSelectedAnimalDetail] =
+    useState<AnimalResponseDTO | null>(null);
+
   const fetchSections = async () => {
     try {
       setLoading(true);
       const data = await sectionApi.getAllSections();
       setSections(data);
+
+      const animalPromises = data.map((sec) =>
+        animalApi.getBySectionId(sec.id),
+      );
+      const animalResults = await Promise.all(animalPromises);
+      setAllAnimals(animalResults.flat());
+
       setError(null);
     } catch (err) {
       setError(
@@ -45,7 +61,7 @@ export const SectionsPage: React.FC = () => {
     } catch (err: any) {
       const errorMessage =
         err.response?.data?.message || "Padok eklenirken bir hata oluştu.";
-      toast.error(errorMessage); // 🔥 Hata Bildirimi
+      toast.error(errorMessage);
     }
   };
 
@@ -78,7 +94,6 @@ export const SectionsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sections.map((section) => {
-            // currentAnimalCount null veya undefined gelirse varsayılan olarak 0 al
             const currentCount = section.currentAnimalCount ?? 0;
             const fullnessRatio = Math.round(
               (currentCount / section.capacity) * 100,
@@ -88,51 +103,62 @@ export const SectionsPage: React.FC = () => {
             return (
               <div
                 key={section.id}
-                className="bg-white rounded-xl shadow-md p-5 border border-gray-100 hover:shadow-lg transition-shadow"
+                className="bg-white rounded-xl shadow-md p-5 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col justify-between"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {section.name}
-                  </h3>
-                  <span
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                      isFull
-                        ? "bg-red-100 text-red-800"
-                        : "bg-emerald-100 text-emerald-800"
-                    }`}
-                  >
-                    {isFull ? "Dolu" : "Uygun"}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-gray-600 justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Users className="h-4 w-4" />
-                      Doluluk:
-                    </span>
-                    <span className="font-semibold text-gray-800">
-                      {currentCount} / {section.capacity} Hayvan
-                    </span>
-                  </div>
-
-                  {/* Doluluk Çubuğu (Progress Bar) */}
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className={`h-2.5 rounded-full transition-all duration-300 ${
-                        fullnessRatio >= 90
-                          ? "bg-red-500"
-                          : fullnessRatio >= 70
-                            ? "bg-amber-500"
-                            : "bg-emerald-500"
+                <div>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      {section.name}
+                    </h3>
+                    <span
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                        isFull
+                          ? "bg-red-100 text-red-800"
+                          : "bg-emerald-100 text-emerald-800"
                       }`}
-                      style={{ width: `${Math.min(fullnessRatio, 100)}%` }}
-                    />
+                    >
+                      {isFull ? "Dolu" : "Uygun"}
+                    </span>
                   </div>
-                  <div className="text-right text-xs text-gray-500">
-                    %{fullnessRatio} Dolu
+
+                  <div className="space-y-3">
+                    <div className="flex items-center text-sm text-gray-600 justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-4 w-4" />
+                        Doluluk:
+                      </span>
+                      <span className="font-semibold text-gray-800">
+                        {currentCount} / {section.capacity} Hayvan
+                      </span>
+                    </div>
+
+                    {/* Doluluk Çubuğu (Progress Bar) */}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className={`h-2.5 rounded-full transition-all duration-300 ${
+                          fullnessRatio >= 90
+                            ? "bg-red-500"
+                            : fullnessRatio >= 70
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${Math.min(fullnessRatio, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-right text-xs text-gray-500">
+                      %{fullnessRatio} Dolu
+                    </div>
                   </div>
                 </div>
+
+                {/* 🟢 1. KONUM: PADOĞA GİR BUTONU HER KARTIN ALTINA EKLENDİ */}
+                <button
+                  onClick={() => setSelectedGridSection(section)}
+                  className="w-full mt-4 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  <Eye className="h-4 w-4" />
+                  Padoğa Gir / Krokini Gör
+                </button>
               </div>
             );
           })}
@@ -192,6 +218,19 @@ export const SectionsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 🟢 2. KONUM: GÖRSEL KROKİ VE DETAY MODALLARI EN ALTA EKLENDİ */}
+      <SectionGridModal
+        section={selectedGridSection}
+        animals={allAnimals}
+        onClose={() => setSelectedGridSection(null)}
+        onSelectAnimal={(animal) => setSelectedAnimalDetail(animal)}
+      />
+
+      <AnimalDetailModal
+        animal={selectedAnimalDetail}
+        onClose={() => setSelectedAnimalDetail(null)}
+      />
     </div>
   );
 };

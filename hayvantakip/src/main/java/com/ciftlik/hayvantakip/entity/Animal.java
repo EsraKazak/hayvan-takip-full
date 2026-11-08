@@ -3,6 +3,7 @@ package com.ciftlik.hayvantakip.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.util.*;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -41,5 +42,11 @@ public class Animal {
     @JoinColumn(name = "mother_id")
     @JsonIgnoreProperties({ "section", "mother" })
     private Animal mother;
+
+    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VaccinationRecord> vaccinationRecords = new ArrayList<>();
+
+    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<InseminationRecord> inseminationRecords = new ArrayList<>();
 
 }
