@@ -55,6 +55,7 @@ public class AnimalService {
                 animal.setBreed(createDto.breed());
                 animal.setSection(section);
                 animal.setStatus(AnimalStatus.AKTIF);
+                animal.setSlotNumber(createDto.slotNumber());
 
                 // 5. Anne kaydı kontrolü
                 if (createDto.motherId() != null) {
@@ -68,24 +69,23 @@ public class AnimalService {
                 return convertToDto(savedAnimal);
         }
 
-        public AnimalResponseDto transferAnimal(Long animalId, Long targetSectionId) {
+        public AnimalResponseDto transferAnimal(Long animalId, Long targetSectionId, Integer targetSlotNumber) {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
-
-                if (animal.getSection().getId().equals(targetSectionId)) {
-                        throw new RuntimeException("Hayvan zaten bu bölmede!");
-                }
 
                 Section targetSection = sectionRepository.findById(targetSectionId)
                                 .orElseThrow(() -> new RuntimeException("Hedef bölme bulunamadı: " + targetSectionId));
 
-                int currenCountIntTarget = animalRepository.countBySectionId(targetSectionId);
-                if (currenCountIntTarget >= targetSection.getCapacity()) {
-                        throw new RuntimeException(
-                                        "Hedef bölme dolu! Maksimum kapasite: " + targetSection.getCapacity());
+                if (!animal.getSection().getId().equals(targetSectionId)) {
+                        int currentCountIntTarget = animalRepository.countBySectionId(targetSectionId);
+                        if (currentCountIntTarget >= targetSection.getCapacity()) {
+                                throw new RuntimeException(
+                                                "Hedef bölme dolu! Maksimum kapasite: " + targetSection.getCapacity());
+                        }
                 }
 
                 animal.setSection(targetSection);
+                animal.setSlotNumber(targetSlotNumber);
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
         }
@@ -152,6 +152,7 @@ public class AnimalService {
                                 sectionName,
                                 motherId,
                                 motherTagNumber,
+                                animal.getSlotNumber(),
                                 vaccinations,
                                 inseminations);
         }

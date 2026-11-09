@@ -36,9 +36,10 @@ public class AnimalController {
 
     @PutMapping("/{id}/transfer")
     public ResponseEntity<AnimalResponseDto> transferAnimal(@PathVariable Long id,
-            @RequestParam @NotNull(message = "Hedef Padok Id'si boş olamaz.") Long targetSectionId) {
+            @RequestParam @NotNull(message = "Hedef Padok Id'si boş olamaz.") Long targetSectionId,
+            @RequestParam(required = false) Integer targetSlotNumber) {
 
-        return ResponseEntity.ok(animalService.transferAnimal(id, targetSectionId));
+        return ResponseEntity.ok(animalService.transferAnimal(id, targetSectionId, targetSlotNumber));
     }
 
     @PutMapping("/{id}/status")

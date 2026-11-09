@@ -28,6 +28,7 @@ export interface AnimalCreateDTO {
   breed: string;
   sectionId: number;
   motherId?: number; //opsiyonel, eğer hayvanın annesi biliniyorsa
+  slotNumber?: number | null; //opsiyonel, eğer hayvanın padokta hangi slotta durduğu biliniyorsa
 }
 
 // GET /api/animals/... yanıtı
@@ -44,8 +45,11 @@ export interface AnimalResponseDTO {
   animalStatus: AnimalStatus;
   sectionName: string; //padok ismi
   motherTagNumber?: string | null; //opsiyonel, eğer hayvanın annesi biliniyorsa
+  slotNumber?: number | null; //opsiyonel, eğer hayvanın padokta hangi slotta durduğu biliniyorsa
   vaccinations?: VaccinationDTO[];
+  vaccinationRecords?: VaccinationDTO[];
   inseminations?: InseminationDTO[];
+  inseminationRecords?: InseminationDTO[];
 }
 
 export interface VaccinationDTO {

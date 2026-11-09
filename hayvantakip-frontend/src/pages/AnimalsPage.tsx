@@ -41,11 +41,13 @@ export const AnimalsPage: React.FC = () => {
   const [birthDate, setBirthDate] = useState("");
   const [selectedSectionId, setSelectedSectionId] = useState<number | "">("");
   const [selectedMotherId, setSelectedMotherId] = useState<number | "">("");
+  const [slotNumber, setSlotNumber] = useState<number | "">("");
 
   // Form State - Transfer
   const [selectedAnimal, setSelectedAnimal] =
     useState<AnimalResponseDTO | null>(null);
   const [targetSectionId, setTargetSectionId] = useState<number | "">("");
+  const [targetSlotNumber, setTargetSlotNumber] = useState<number | "">("");
 
   // Verileri Çekme
   const fetchData = async () => {
@@ -117,6 +119,7 @@ export const AnimalsPage: React.FC = () => {
         breed: breed.trim(),
         sectionId: Number(selectedSectionId),
         motherId: selectedMotherId ? Number(selectedMotherId) : undefined,
+        slotNumber: slotNumber ? Number(slotNumber) : null,
       });
 
       toast.success(`${tagNumber} küpe numaralı hayvan başarıyla kaydedildi!`);
@@ -144,10 +147,18 @@ export const AnimalsPage: React.FC = () => {
     if (!selectedAnimal || !targetSectionId) return;
 
     try {
-      await animalApi.transfer(selectedAnimal.id, Number(targetSectionId));
+      await animalApi.transfer(
+        selectedAnimal.id,
+        Number(targetSectionId),
+        targetSlotNumber ? Number(targetSlotNumber) : null,
+      );
+      toast.success(
+        `${selectedAnimal.tagNumber} küpeli hayvan başarıyla transfer edildi!`,
+      );
       setIsTransferModalOpen(false);
       setSelectedAnimal(null);
       setTargetSectionId("");
+      setTargetSlotNumber("");
       fetchData();
     } catch (err: any) {
       const msg = err.response?.data?.message || "Transfer işlemi başarısız.";
@@ -533,6 +544,22 @@ export const AnimalsPage: React.FC = () => {
                     ))}
                 </select>
               </div>
+              {/* Durak / Slot Numarası (Opsiyonel) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Durak / Slot No (Opsiyonel)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Örn: 1, 2, 3..."
+                  value={slotNumber}
+                  onChange={(e) =>
+                    setSlotNumber(e.target.value ? Number(e.target.value) : "")
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
 
               {/* Butonlar */}
               <div className="flex justify-end gap-3 pt-4">
@@ -583,12 +610,9 @@ export const AnimalsPage: React.FC = () => {
                     const isCurrent = sec.id === selectedAnimal.sectionId;
                     const isFull =
                       (sec.currentAnimalCount ?? 0) >= sec.capacity;
+                    const isDisabled = isFull && !isCurrent;
                     return (
-                      <option
-                        key={sec.id}
-                        value={sec.id}
-                        disabled={isCurrent || isFull}
-                      >
+                      <option key={sec.id} value={sec.id} disabled={isDisabled}>
                         {sec.name} ({sec.currentAnimalCount ?? 0}/{sec.capacity}
                         ){" "}
                         {isCurrent
@@ -600,6 +624,27 @@ export const AnimalsPage: React.FC = () => {
                     );
                   })}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hedef Durak / Slot No (Opsiyonel)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Örn: 1, 2, 3..."
+                  value={targetSlotNumber}
+                  onChange={(e) =>
+                    setTargetSlotNumber(
+                      e.target.value ? Number(e.target.value) : "",
+                    )
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Boş bırakılırsa sıradaki uygun alana yerleşir.
+                </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

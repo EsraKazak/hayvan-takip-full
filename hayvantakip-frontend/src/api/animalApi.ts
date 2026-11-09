@@ -30,11 +30,19 @@ export const animalApi = {
   transfer: async (
     animalId: number,
     targetSectionId: number,
+    targetSlotNumber?: number | null,
   ): Promise<AnimalResponseDTO> => {
     const response = await axiosClient.put<AnimalResponseDTO>(
       `/animals/${animalId}/transfer`,
       null,
-      { params: { targetSectionId } },
+      {
+        params: {
+          targetSectionId,
+          targetSlotNumber: targetSlotNumber
+            ? Number(targetSlotNumber)
+            : undefined,
+        },
+      },
     );
     return response.data;
   },

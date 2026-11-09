@@ -39,6 +39,11 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
 
   if (!animal) return null;
 
+  const vaccineList: VaccinationDTO[] =
+    animal.vaccinations || animal.vaccinationRecords || [];
+  const inseminationList: InseminationDTO[] =
+    animal.inseminations || animal.inseminationRecords || [];
+
   // Aşı Kaydetme
   const handleAddVaccination = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,8 +151,10 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                 : "border-transparent text-gray-500"
             }`}
           >
-            <Syringe className="h-4 w-4" /> Aşı Geçmişi (
-            {animal.vaccinations?.length || 0})
+            <Syringe className="h-4 w-4" />
+            <button onClick={() => setActiveTab("vaccines")}>
+              Aşı Geçmişi ({vaccineList.length})
+            </button>
           </button>
           <button
             onClick={() => setActiveTab("insemination")}
@@ -158,7 +165,10 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
             }`}
           >
             <Heart className="h-4 w-4" /> Tohumlanma / Gebelik (
-            {animal.inseminations?.length || 0})
+            <button onClick={() => setActiveTab("insemination")}>
+              ({inseminationList.length})
+            </button>
+            )
           </button>
         </div>
 
@@ -292,12 +302,12 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
               )}
 
               {/* Aşı Listesi */}
-              {!animal.vaccinations || animal.vaccinations.length === 0 ? (
+              {!vaccineList || vaccineList.length === 0 ? (
                 <p className="text-center text-gray-400 py-6 text-sm">
                   Kayıtlı aşı bilgisi bulunmamaktadır.
                 </p>
               ) : (
-                animal.vaccinations.map((vac) => (
+                vaccineList.map((vac) => (
                   <div
                     key={vac.id || Math.random()}
                     className="p-3 bg-white border border-gray-100 shadow-sm rounded-lg flex justify-between items-center"
@@ -411,12 +421,12 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
               )}
 
               {/* Tohumlanma Listesi */}
-              {!animal.inseminations || animal.inseminations.length === 0 ? (
+              {inseminationList.length === 0 ? (
                 <p className="text-center text-gray-400 py-6 text-sm">
                   Kayıtlı tohumlanma/gebelik bilgisi bulunmamaktadır.
                 </p>
               ) : (
-                animal.inseminations.map((ins) => (
+                inseminationList.map((ins) => (
                   <div
                     key={ins.id || Math.random()}
                     className="p-3 bg-white border border-gray-100 shadow-sm rounded-lg flex justify-between items-center"

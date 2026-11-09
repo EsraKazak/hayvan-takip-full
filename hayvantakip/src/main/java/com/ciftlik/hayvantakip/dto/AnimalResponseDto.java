@@ -6,18 +6,19 @@ import java.util.List;
 import com.ciftlik.hayvantakip.entity.AnimalStatus;
 
 public record AnimalResponseDto(
-        Long id,
-        String tagNumber,
-        String name,
-        LocalDate birthDate,
-        LocalDate deathDate,
-        String gender,
-        String breed,
-        AnimalStatus animalStatus,
-        Long sectionId,
-        String sectionName,
-        Long motherId,
-        String motherTagNumber,
-        List<VaccinationDto> vaccinationRecords,
-        List<InseminationDto> inseminationRecords) {
+                Long id,
+                String tagNumber,
+                String name,
+                LocalDate birthDate,
+                LocalDate deathDate,
+                String gender,
+                String breed,
+                AnimalStatus animalStatus,
+                Long sectionId,
+                String sectionName,
+                Long motherId,
+                String motherTagNumber,
+                Integer slotNumber,
+                List<VaccinationDto> vaccinationRecords,
+                List<InseminationDto> inseminationRecords) {
 }

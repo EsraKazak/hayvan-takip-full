@@ -14,7 +14,7 @@ export const SectionsPage: React.FC = () => {
 
   // Form durumları
   const [name, setName] = useState("");
-  const [capacity, setCapacity] = useState<number>(10);
+  const [capacity, setCapacity] = useState<number | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [allAnimals, setAllAnimals] = useState<AnimalResponseDTO[]>([]);
@@ -52,10 +52,10 @@ export const SectionsPage: React.FC = () => {
   const handleCreateSection = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await sectionApi.create({ name, capacity });
+      await sectionApi.create({ name, capacity: Number(capacity) });
       toast.success(`'${name}' padoğu başarıyla oluşturuldu!`);
       setName("");
-      setCapacity(10);
+      setCapacity("");
       setIsModalOpen(false);
       fetchSections(); // Listeyi yenile
     } catch (err: any) {
@@ -92,7 +92,7 @@ export const SectionsPage: React.FC = () => {
       {loading ? (
         <div className="text-center py-12 text-gray-500">Yükleniyor...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {sections.map((section) => {
             const currentCount = section.currentAnimalCount ?? 0;
             const fullnessRatio = Math.round(
@@ -193,9 +193,13 @@ export const SectionsPage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  required
+                  placeholder="Örn: 20"
                   value={capacity}
-                  onChange={(e) => setCapacity(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Kullanıcı alanı tamamen silerse boş string yap, sayı girerse Number'a çevir (başındaki 0'ları siler)
+                    setCapacity(val === "" ? "" : Number(val));
+                  }}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>

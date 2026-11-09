@@ -43,10 +43,12 @@ public class Animal {
     @JsonIgnoreProperties({ "section", "mother" })
     private Animal mother;
 
-    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<VaccinationRecord> vaccinationRecords = new ArrayList<>();
 
-    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "animal", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<InseminationRecord> inseminationRecords = new ArrayList<>();
+
+    private Integer slotNumber;
 
 }
