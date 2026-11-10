@@ -10,6 +10,7 @@ import com.ciftlik.hayvantakip.dto.SectionCreateDto;
 import com.ciftlik.hayvantakip.dto.SectionResponseDto;
 import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.Section;
+import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.AnimalRepository;
 import com.ciftlik.hayvantakip.repository.SectionRepository;
@@ -44,6 +45,20 @@ public class SectionService {
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Belirtilen ID'ye sahip bölme bulunamadı: " + id));
                 return convertToDto(section);
+        }
+
+        // Bölmeyi silmek için kullanılır
+        public void deleteSection(Long id) {
+                Section section = sectionRepository.findById(id)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Belirtilen ID'ye sahip bölme bulunamadı: " + id));
+
+                int currentAnimalCount = animalRepository.countBySectionId(id);
+                if (currentAnimalCount > 0) {
+                        throw new BusinessException("Bu padok silinemez! İçinde " + currentAnimalCount
+                                        + " adet hayvan bulunmaktadır. Lütfen önce hayvanları başka bir padoğa transfer edin.");
+                }
+                sectionRepository.delete(section);
         }
 
         // Entity -> DTO Dönüştürücü

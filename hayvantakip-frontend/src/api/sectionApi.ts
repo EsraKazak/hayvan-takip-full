@@ -21,4 +21,8 @@ export const sectionApi = {
     );
     return response.data;
   },
+
+  deleteSection: async (id: number): Promise<void> => {
+    await axiosClient.delete(`/sections/${id}`);
+  },
 };

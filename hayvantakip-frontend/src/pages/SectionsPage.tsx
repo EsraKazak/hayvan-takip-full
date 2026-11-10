@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { sectionApi } from "../api/sectionApi";
 import type { AnimalResponseDTO, SectionResponseDTO } from "../types";
-import { Plus, Users, Eye } from "lucide-react"; // 🔥 Eye ikonu eklendi
+import { Plus, Users, Eye, Trash2 } from "lucide-react"; // 🔥 Eye ikonu eklendi
 import { toast } from "sonner";
 import { animalApi } from "../api/animalApi";
 import { SectionGridModal } from "../components/SectionGridModal"; // 🔥 Import eklendi
@@ -65,6 +65,30 @@ export const SectionsPage: React.FC = () => {
     }
   };
 
+  // Silme işlemi için fonksiyon
+  const handleDeleteSection = async (section: SectionResponseDTO) => {
+    if (section.currentAnimalCount && section.currentAnimalCount > 0) {
+      toast.error(
+        `'${section.name}' padoğu silinemez! İçinde ${section.currentAnimalCount} adet hayvan var.`,
+      );
+      return;
+    }
+
+    if (
+      confirm(`'${section.name}' padoğunu silmek istediğinize emin misiniz?`)
+    ) {
+      try {
+        await sectionApi.deleteSection(section.id);
+        toast.success(`'${section.name}' padoğu başarıyla silindi.`);
+        fetchSections(); // Listeyi tazele
+      } catch (err: any) {
+        toast.error(
+          err.response?.data?.message || "Padok silinirken bir hata oluştu.",
+        );
+      }
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -110,15 +134,15 @@ export const SectionsPage: React.FC = () => {
                     <h3 className="text-lg font-semibold text-gray-800">
                       {section.name}
                     </h3>
-                    <span
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                        isFull
-                          ? "bg-red-100 text-red-800"
-                          : "bg-emerald-100 text-emerald-800"
-                      }`}
-                    >
-                      {isFull ? "Dolu" : "Uygun"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDeleteSection(section)}
+                        title="Padoğu Sil"
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
