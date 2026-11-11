@@ -1,8 +1,11 @@
 package com.ciftlik.hayvantakip.service;
 
+import java.util.Collections;
 import java.util.List;
 
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
 import com.ciftlik.hayvantakip.dto.InseminationDto;
@@ -24,7 +27,7 @@ public class SectionService {
         private final SectionRepository sectionRepository;
         private final AnimalRepository animalRepository;
 
-        // Yeni bölme oluşturmak için kullanılır
+        @Transactional
         public SectionResponseDto createSection(SectionCreateDto createDto) {
                 Section section = new Section();
                 section.setName(createDto.name());
@@ -34,12 +37,14 @@ public class SectionService {
                 return convertToDto(savedSection);
         }
 
-        // tüm bölmeleri listeler
+        @Transactional(readOnly = true)
         public List<SectionResponseDto> getAllSections() {
-                return sectionRepository.findAll().stream().map(this::convertToDto).toList();
+                return sectionRepository.findAll().stream()
+                                .map(this::convertToDto)
+                                .toList();
         }
 
-        // idsine görebolme getirir
+        @Transactional(readOnly = true)
         public SectionResponseDto getSectionById(Long id) {
                 Section section = sectionRepository.findById(id)
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -47,7 +52,7 @@ public class SectionService {
                 return convertToDto(section);
         }
 
-        // Bölmeyi silmek için kullanılır
+        @Transactional
         public void deleteSection(Long id) {
                 Section section = sectionRepository.findById(id)
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -61,60 +66,64 @@ public class SectionService {
                 sectionRepository.delete(section);
         }
 
-        // Entity -> DTO Dönüştürücü
+        // Entity -> DTO Dönüştürücü (Güvenli Katman)
         private SectionResponseDto convertToDto(Section section) {
-                // 1. Hayvan listesini güvenli bir şekilde map et (null ise boş liste dön)
-                List<AnimalResponseDto> animalDtos = (section.getAnimals() != null)
-                                ? section.getAnimals().stream().map(animal -> {
-                                        Long motherId = (animal.getMother() != null) ? animal.getMother().getId()
-                                                        : null;
-                                        String motherTagNumber = (animal.getMother() != null)
-                                                        ? animal.getMother().getTagNumber()
-                                                        : null;
+                List<AnimalResponseDto> animalDtos = Collections.emptyList();
 
-                                        List<VaccinationDto> vDtos = (animal.getVaccinationRecords() != null)
-                                                        ? animal.getVaccinationRecords().stream()
-                                                                        .map(v -> new VaccinationDto(v.getId(),
-                                                                                        v.getVaccineName(),
-                                                                                        v.getAppliedDate(),
-                                                                                        v.getNextDueDate(),
-                                                                                        v.getNotes()))
-                                                                        .toList()
-                                                        : List.of();
+                // Lazy koleksiyonun yuklu ve null olmadığını garanti et
+                if (section.getAnimals() != null && Hibernate.isInitialized(section.getAnimals())) {
+                        animalDtos = section.getAnimals().stream().map(animal -> {
+                                Long motherId = null;
+                                String motherTagNumber = null;
 
-                                        // Tohumlanma listesini DTO'ya dönüştür
-                                        List<InseminationDto> iDtos = (animal.getInseminationRecords() != null)
-                                                        ? animal.getInseminationRecords().stream()
-                                                                        .map(i -> new InseminationDto(i.getId(),
-                                                                                        i.getInseminationDate(),
-                                                                                        i.getExpectedBirthDate(),
-                                                                                        i.getStatus(), i.getBullInfo()))
-                                                                        .toList()
-                                                        : List.of();
+                                if (animal.getMother() != null && Hibernate.isInitialized(animal.getMother())) {
+                                        motherId = animal.getMother().getId();
+                                        motherTagNumber = animal.getMother().getTagNumber();
+                                }
 
-                                        return new AnimalResponseDto(
-                                                        animal.getId(),
-                                                        animal.getTagNumber(),
-                                                        animal.getName(),
-                                                        animal.getBirthDate(),
-                                                        animal.getDeathDate(),
-                                                        animal.getGender(),
-                                                        animal.getBreed(),
-                                                        animal.getStatus(),
-                                                        section.getId(),
-                                                        section.getName(),
-                                                        motherId,
-                                                        motherTagNumber,
-                                                        animal.getSlotNumber(),
-                                                        vDtos,
-                                                        iDtos);
-                                }).toList()
-                                : List.of();
+                                List<VaccinationDto> vDtos = (animal.getVaccinationRecords() != null
+                                                && Hibernate.isInitialized(animal.getVaccinationRecords()))
+                                                                ? animal.getVaccinationRecords().stream()
+                                                                                .map(v -> new VaccinationDto(v.getId(),
+                                                                                                v.getVaccineName(),
+                                                                                                v.getAppliedDate(),
+                                                                                                v.getNextDueDate(),
+                                                                                                v.getNotes()))
+                                                                                .toList()
+                                                                : Collections.emptyList();
 
-                // 2. Anlık hayvan sayısını veritabanı sorgusuyla al
+                                List<InseminationDto> iDtos = (animal.getInseminationRecords() != null
+                                                && Hibernate.isInitialized(animal.getInseminationRecords()))
+                                                                ? animal.getInseminationRecords().stream()
+                                                                                .map(i -> new InseminationDto(i.getId(),
+                                                                                                i.getInseminationDate(),
+                                                                                                i.getExpectedBirthDate(),
+                                                                                                i.getStatus(),
+                                                                                                i.getBullInfo()))
+                                                                                .toList()
+                                                                : Collections.emptyList();
+
+                                return new AnimalResponseDto(
+                                                animal.getId(),
+                                                animal.getTagNumber(),
+                                                animal.getName(),
+                                                animal.getBirthDate(),
+                                                animal.getDeathDate(),
+                                                animal.getGender(),
+                                                animal.getBreed(),
+                                                animal.getStatus(),
+                                                section.getId(),
+                                                section.getName(),
+                                                motherId,
+                                                motherTagNumber,
+                                                animal.getSlotNumber(),
+                                                vDtos,
+                                                iDtos);
+                        }).toList();
+                }
+
                 int currentAnimalCount = animalRepository.countBySectionId(section.getId());
 
-                // 3. SectionResponseDto nesnesini eksiksiz oluştur
                 return new SectionResponseDto(
                                 section.getId(),
                                 section.getName(),

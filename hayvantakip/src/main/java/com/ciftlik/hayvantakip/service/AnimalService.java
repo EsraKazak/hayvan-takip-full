@@ -1,9 +1,12 @@
 package com.ciftlik.hayvantakip.service;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.ciftlik.hayvantakip.dto.AnimalCreateDto;
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
@@ -14,10 +17,10 @@ import com.ciftlik.hayvantakip.entity.AnimalStatus;
 import com.ciftlik.hayvantakip.entity.InseminationRecord;
 import com.ciftlik.hayvantakip.entity.Section;
 import com.ciftlik.hayvantakip.entity.VaccinationRecord;
-import com.ciftlik.hayvantakip.repository.AnimalRepository;
-import com.ciftlik.hayvantakip.repository.SectionRepository;
 import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
+import com.ciftlik.hayvantakip.repository.AnimalRepository;
+import com.ciftlik.hayvantakip.repository.SectionRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,25 +31,21 @@ public class AnimalService {
         private final AnimalRepository animalRepository;
         private final SectionRepository sectionRepository;
 
+        @Transactional
         public AnimalResponseDto addAnimal(AnimalCreateDto createDto) {
-
-                // 1. Bölme varlık kontrolü
                 Section section = sectionRepository.findById(createDto.sectionId())
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Bölme bulunamadı: " + createDto.sectionId()));
 
-                // 2. Kapasite kontrolü
                 int currentAnimalCount = animalRepository.countBySectionId(createDto.sectionId());
                 if (currentAnimalCount >= section.getCapacity()) {
                         throw new BusinessException("Bu bölme dolu! Maksimum kapasite: " + section.getCapacity());
                 }
 
-                // 3. Küpe numarası benzersizlik kontrolü
                 if (animalRepository.findByTagNumber(createDto.tagNumber()).isPresent()) {
                         throw new BusinessException("Bu kulak küpe numarası zaten kayıtlı: " + createDto.tagNumber());
                 }
 
-                // 4. Entity nesnesini oluşturma
                 Animal animal = new Animal();
                 animal.setTagNumber(createDto.tagNumber());
                 animal.setName(createDto.name());
@@ -57,10 +56,9 @@ public class AnimalService {
                 animal.setStatus(AnimalStatus.AKTIF);
                 animal.setSlotNumber(createDto.slotNumber());
 
-                // 5. Anne kaydı kontrolü
                 if (createDto.motherId() != null) {
                         Animal mother = animalRepository.findById(createDto.motherId())
-                                        .orElseThrow(() -> new RuntimeException(
+                                        .orElseThrow(() -> new ResourceNotFoundException(
                                                         "Anne kaydı bulunamadı: " + createDto.motherId()));
                         animal.setMother(mother);
                 }
@@ -69,17 +67,19 @@ public class AnimalService {
                 return convertToDto(savedAnimal);
         }
 
+        @Transactional
         public AnimalResponseDto transferAnimal(Long animalId, Long targetSectionId, Integer targetSlotNumber) {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
                 Section targetSection = sectionRepository.findById(targetSectionId)
-                                .orElseThrow(() -> new RuntimeException("Hedef bölme bulunamadı: " + targetSectionId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Hedef bölme bulunamadı: " + targetSectionId));
 
                 if (!animal.getSection().getId().equals(targetSectionId)) {
                         int currentCountIntTarget = animalRepository.countBySectionId(targetSectionId);
                         if (currentCountIntTarget >= targetSection.getCapacity()) {
-                                throw new RuntimeException(
+                                throw new BusinessException(
                                                 "Hedef bölme dolu! Maksimum kapasite: " + targetSection.getCapacity());
                         }
                 }
@@ -90,9 +90,10 @@ public class AnimalService {
                 return convertToDto(updateAnimal);
         }
 
+        @Transactional
         public AnimalResponseDto updateAnimalStatus(Long animalId, AnimalStatus newStatus) {
                 Animal animal = animalRepository.findById(animalId)
-                                .orElseThrow(() -> new RuntimeException("Hayvan bulunamadı: " + animalId));
+                                .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
                 animal.setStatus(newStatus);
 
                 if (newStatus == AnimalStatus.OLDU) {
@@ -100,15 +101,17 @@ public class AnimalService {
                 }
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
-
         }
 
+        @Transactional(readOnly = true)
         public AnimalResponseDto getAnimalTagNumber(String tagNumber) {
                 Animal animal = animalRepository.findByTagNumber(tagNumber)
-                                .orElseThrow(() -> new RuntimeException("Hayvan Bulunamadı Küpe No: " + tagNumber));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Hayvan Bulunamadı Küpe No: " + tagNumber));
                 return convertToDto(animal);
         }
 
+        @Transactional(readOnly = true)
         public List<AnimalResponseDto> getAnimalsBySection(Long sectionId) {
                 return animalRepository.findBySectionId(sectionId)
                                 .stream()
@@ -116,29 +119,38 @@ public class AnimalService {
                                 .toList();
         }
 
-        // Entity -> DTO Dönüşüm Metodu
+        // Entity -> DTO Dönüşüm Metodu (Güvenli Katman)
         private AnimalResponseDto convertToDto(Animal animal) {
                 Long sectionId = (animal.getSection() != null) ? animal.getSection().getId() : null;
                 String sectionName = (animal.getSection() != null) ? animal.getSection().getName() : null;
 
-                Long motherId = (animal.getMother() != null) ? animal.getMother().getId() : null;
-                String motherTagNumber = (animal.getMother() != null) ? animal.getMother().getTagNumber() : null;
+                Long motherId = null;
+                String motherTagNumber = null;
+                if (animal.getMother() != null && Hibernate.isInitialized(animal.getMother())) {
+                        motherId = animal.getMother().getId();
+                        motherTagNumber = animal.getMother().getTagNumber();
+                }
 
-                List<VaccinationDto> vaccinations = (animal.getVaccinationRecords() != null)
-                                ? animal.getVaccinationRecords().stream()
-                                                .map(v -> new VaccinationDto(v.getId(), v.getVaccineName(),
-                                                                v.getAppliedDate(),
-                                                                v.getNextDueDate(), v.getNotes()))
-                                                .toList()
-                                : List.of();
+                List<VaccinationDto> vaccinations = (animal.getVaccinationRecords() != null
+                                && Hibernate.isInitialized(animal.getVaccinationRecords()))
+                                                ? animal.getVaccinationRecords().stream()
+                                                                .map(v -> new VaccinationDto(v.getId(),
+                                                                                v.getVaccineName(),
+                                                                                v.getAppliedDate(), v.getNextDueDate(),
+                                                                                v.getNotes()))
+                                                                .toList()
+                                                : Collections.emptyList();
 
-                List<InseminationDto> inseminations = (animal.getInseminationRecords() != null)
-                                ? animal.getInseminationRecords().stream()
-                                                .map(i -> new InseminationDto(i.getId(), i.getInseminationDate(),
-                                                                i.getExpectedBirthDate(),
-                                                                i.getStatus(), i.getBullInfo()))
-                                                .toList()
-                                : List.of();
+                List<InseminationDto> inseminations = (animal.getInseminationRecords() != null
+                                && Hibernate.isInitialized(animal.getInseminationRecords()))
+                                                ? animal.getInseminationRecords().stream()
+                                                                .map(i -> new InseminationDto(i.getId(),
+                                                                                i.getInseminationDate(),
+                                                                                i.getExpectedBirthDate(), i.getStatus(),
+                                                                                i.getBullInfo()))
+                                                                .toList()
+                                                : Collections.emptyList();
+
                 return new AnimalResponseDto(
                                 animal.getId(),
                                 animal.getTagNumber(),
@@ -157,8 +169,8 @@ public class AnimalService {
                                 inseminations);
         }
 
+        @Transactional
         public VaccinationDto addVaccination(Long animalId, VaccinationDto dto) {
-
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
@@ -171,13 +183,11 @@ public class AnimalService {
 
                 animal.getVaccinationRecords().add(record);
                 animalRepository.save(animal);
-
                 return dto;
-
         }
 
+        @Transactional
         public InseminationDto addInsemination(Long animalId, InseminationDto dto) {
-
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
@@ -190,8 +200,6 @@ public class AnimalService {
 
                 animal.getInseminationRecords().add(record);
                 animalRepository.save(animal);
-
                 return dto;
-
         }
 }
