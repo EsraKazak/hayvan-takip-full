@@ -122,7 +122,6 @@ export const SectionsPage: React.FC = () => {
             const fullnessRatio = Math.round(
               (currentCount / section.capacity) * 100,
             );
-            const isFull = currentCount >= section.capacity;
 
             return (
               <div
