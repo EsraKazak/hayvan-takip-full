@@ -13,8 +13,10 @@ import {
   Tag,
   Filter,
   RefreshCw,
+  Syringe,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BulkVaccinationModal } from "../components/BulkVaccinationModal";
 
 export const AnimalsPage: React.FC = () => {
   const [animals, setAnimals] = useState<AnimalResponseDTO[]>([]);
@@ -48,6 +50,28 @@ export const AnimalsPage: React.FC = () => {
     useState<AnimalResponseDTO | null>(null);
   const [targetSectionId, setTargetSectionId] = useState<number | "">("");
   const [targetSlotNumber, setTargetSlotNumber] = useState<number | "">("");
+
+  // toplu aşılama için
+  const [selectedAnimalIds, setSelectedAnimalIds] = useState<number[]>([]);
+  const [isBulkVaccineModalOpen, setIsBulkVaccineModalOpen] = useState(false);
+
+  const toggleSelectAnimal = (id: number) => {
+    setSelectedAnimalIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedAnimalIds.length === filteredAnimals.length) {
+      setSelectedAnimalIds([]);
+    } else {
+      setSelectedAnimalIds(filteredAnimals.map((a) => a.id));
+    }
+  };
+
+  const selectedAnimalObjects = animals.filter((a) =>
+    selectedAnimalIds.includes(a.id),
+  );
 
   // Verileri Çekme
   const fetchData = async () => {
@@ -224,13 +248,23 @@ export const AnimalsPage: React.FC = () => {
             durumlarını güncelleyin.
           </p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-sm"
-        >
-          <Plus className="h-5 w-5" />
-          Yeni Hayvan Ekle
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsBulkVaccineModalOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-sm"
+          >
+            <Syringe className="h-5 w-5" />
+            Toplu Aşılama{" "}
+            {selectedAnimalIds.length > 0 && `(${selectedAnimalIds.length})`}
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-sm"
+          >
+            <Plus className="h-5 w-5" />
+            Yeni Hayvan Ekle
+          </button>
+        </div>
       </div>
 
       {/* 🔍 ARAMA & FİLTRELEME ÇUBUĞU */}
@@ -320,6 +354,17 @@ export const AnimalsPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="py-3 px-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredAnimals.length > 0 &&
+                        selectedAnimalIds.length === filteredAnimals.length
+                      }
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Kulak No</th>
                   <th className="py-3 px-4">Adı</th>
                   <th className="py-3 px-4">Cinsiyet / Irk</th>
@@ -333,7 +378,7 @@ export const AnimalsPage: React.FC = () => {
               <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredAnimals.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-400">
+                    <td colSpan={9} className="py-8 text-center text-gray-400">
                       Seçilen kriterlere uygun hayvan bulunamadı.
                     </td>
                   </tr>
@@ -343,6 +388,14 @@ export const AnimalsPage: React.FC = () => {
                       key={animal.id}
                       className="hover:bg-gray-50/50 transition-colors"
                     >
+                      <td className="py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedAnimalIds.includes(animal.id)}
+                          onChange={() => toggleSelectAnimal(animal.id)}
+                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 px-4 font-semibold text-gray-800 flex items-center gap-2">
                         <Tag className="h-4 w-4 text-emerald-600" />
                         {animal.tagNumber}
@@ -669,6 +722,16 @@ export const AnimalsPage: React.FC = () => {
           </div>
         </div>
       )}
+      <BulkVaccinationModal
+        isOpen={isBulkVaccineModalOpen}
+        onClose={() => setIsBulkVaccineModalOpen(false)}
+        sections={sections}
+        selectedAnimals={selectedAnimalObjects}
+        onSuccess={() => {
+          setSelectedAnimalIds([]);
+          fetchData();
+        }}
+      />
     </div>
   );
 };

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ciftlik.hayvantakip.dto.AnimalCreateDto;
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
+import com.ciftlik.hayvantakip.dto.BulkVaccinationDto;
+import com.ciftlik.hayvantakip.dto.BulkVaccinationResponseDto;
 import com.ciftlik.hayvantakip.dto.InseminationDto;
 import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.AnimalStatus;
@@ -68,5 +70,14 @@ public class AnimalController {
     @PostMapping("/{Id}/inseminations")
     public ResponseEntity<InseminationDto> addInsemination(@PathVariable Long Id, @RequestBody InseminationDto dto) {
         return ResponseEntity.ok(animalService.addInsemination(Id, dto));
+    }
+
+    @PostMapping("/bulk-vaccinations")
+    public ResponseEntity<BulkVaccinationResponseDto> addBulkVaccination(@Valid @RequestBody BulkVaccinationDto dto) {
+        int count = animalService.addbulkVaccinations(dto);
+        BulkVaccinationResponseDto response = new BulkVaccinationResponseDto(
+                count + " adet hayvana toplu aşılama kaydı başarıyla eklendi.",
+                count);
+        return ResponseEntity.ok(response);
     }
 }

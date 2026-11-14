@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ciftlik.hayvantakip.dto.AnimalCreateDto;
 import com.ciftlik.hayvantakip.dto.AnimalResponseDto;
+import com.ciftlik.hayvantakip.dto.BulkVaccinationDto;
 import com.ciftlik.hayvantakip.dto.InseminationDto;
 import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.Animal;
@@ -201,5 +202,38 @@ public class AnimalService {
                 animal.getInseminationRecords().add(record);
                 animalRepository.save(animal);
                 return dto;
+        }
+
+        @Transactional
+        public int addbulkVaccinations(BulkVaccinationDto dtos) {
+                List<Animal> targetAnimal;
+                if (dtos.sectionId() != null) {
+                        targetAnimal = animalRepository.findBySectionId(dtos.sectionId()).stream()
+                                        .filter(a -> a.getStatus() == AnimalStatus.AKTIF).toList();
+
+                } else if (dtos.animalIds() != null && !dtos.animalIds().isEmpty()) {
+                        targetAnimal = animalRepository.findAllById(dtos.animalIds());
+                } else {
+                        throw new BusinessException("Toplu Aşılama İçin En Az Bir Tane Hayvan Seçmelisiniz");
+                }
+
+                if (targetAnimal.isEmpty()) {
+                        throw new BusinessException("Toplu Aşılama İçin Seçilen Hayvanlar Bulunamadı");
+                }
+
+                for (Animal animal : targetAnimal) {
+                        VaccinationRecord record = new VaccinationRecord();
+                        record.setVaccineName(dtos.vaccineName());
+                        record.setAppliedDate(dtos.appliedDate());
+                        record.setNextDueDate(dtos.nextAppliedDate());
+                        record.setNotes(dtos.notes());
+                        record.setAnimal(animal);
+
+                        animal.getVaccinationRecords().add(record);
+                }
+
+                animalRepository.saveAll(targetAnimal);
+
+                return targetAnimal.size();
         }
 }

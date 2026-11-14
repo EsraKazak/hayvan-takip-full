@@ -67,3 +67,17 @@ export interface InseminationDTO {
   status: string;
   bullInfo?: string | null;
 }
+
+export interface bulkVaccinationDTO {
+  animalIds?: number[];
+  sectionId?: number;
+  vaccineName: string;
+  appliedDate: string;
+  nextDueDate?: string | null;
+  notes?: string | null;
+}
+
+export interface bulkVaccinationResponseDTO {
+  message: string;
+  vaccinatedCount: number;
+}

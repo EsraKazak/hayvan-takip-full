@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { sectionApi } from "../api/sectionApi";
 import type { AnimalResponseDTO, SectionResponseDTO } from "../types";
-import { Plus, Users, Eye, Trash2 } from "lucide-react"; // 🔥 Eye ikonu eklendi
+import { Plus, Users, Eye, Trash2, Syringe } from "lucide-react"; // 🔥 Eye ikonu eklendi
 import { toast } from "sonner";
 import { animalApi } from "../api/animalApi";
 import { SectionGridModal } from "../components/SectionGridModal"; // 🔥 Import eklendi
 import { AnimalDetailModal } from "../components/AnimalDetailModal"; // 🔥 Import eklendi
+import { BulkVaccinationModal } from "../components/BulkVaccinationModal";
 
 export const SectionsPage: React.FC = () => {
   const [sections, setSections] = useState<SectionResponseDTO[]>([]);
@@ -22,6 +23,11 @@ export const SectionsPage: React.FC = () => {
     useState<SectionResponseDTO | null>(null);
   const [selectedAnimalDetail, setSelectedAnimalDetail] =
     useState<AnimalResponseDTO | null>(null);
+
+  //toplu aşılama için
+  const [bulkVaccineSectionId, setBulkVaccineSectionId] = useState<
+    number | null
+  >(null);
 
   const fetchSections = async () => {
     try {
@@ -175,13 +181,24 @@ export const SectionsPage: React.FC = () => {
                 </div>
 
                 {/* 🟢 1. KONUM: PADOĞA GİR BUTONU HER KARTIN ALTINA EKLENDİ */}
-                <button
-                  onClick={() => setSelectedGridSection(section)}
-                  className="w-full mt-4 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  <Eye className="h-4 w-4" />
-                  Padoğa Gir / Krokini Gör
-                </button>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => setSelectedGridSection(section)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Kroki / Gir
+                  </button>
+                  <button
+                    onClick={() => setBulkVaccineSectionId(section.id)}
+                    disabled={currentCount === 0}
+                    title="Bu padoktaki tüm hayvanlara aşı uygula"
+                    className="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40"
+                  >
+                    <Syringe className="h-4 w-4" />
+                    Toplu Aşı
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -257,6 +274,14 @@ export const SectionsPage: React.FC = () => {
       <AnimalDetailModal
         animal={selectedAnimalDetail}
         onClose={() => setSelectedAnimalDetail(null)}
+      />
+
+      <BulkVaccinationModal
+        isOpen={bulkVaccineSectionId !== null}
+        onClose={() => setBulkVaccineSectionId(null)}
+        sections={sections}
+        preselectedSectionId={bulkVaccineSectionId}
+        onSuccess={fetchSections}
       />
     </div>
   );

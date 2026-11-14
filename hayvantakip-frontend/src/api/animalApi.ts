@@ -3,6 +3,8 @@ import type {
   AnimalCreateDTO,
   AnimalResponseDTO,
   AnimalStatus,
+  bulkVaccinationDTO,
+  bulkVaccinationResponseDTO,
   InseminationDTO,
   VaccinationDTO,
 } from "../types";
@@ -79,6 +81,16 @@ export const animalApi = {
     const response = await axiosClient.post<InseminationDTO>(
       `/animals/${animalId}/inseminations`,
       data,
+    );
+    return response.data;
+  },
+
+  addBulkVaccination: async (
+    dto: bulkVaccinationDTO,
+  ): Promise<bulkVaccinationResponseDTO> => {
+    const response = await axiosClient.post<bulkVaccinationResponseDTO>(
+      "/animals/bulk-vaccinations",
+      dto,
     );
     return response.data;
   },
