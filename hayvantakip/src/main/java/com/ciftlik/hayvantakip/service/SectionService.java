@@ -12,6 +12,7 @@ import com.ciftlik.hayvantakip.dto.InseminationDto;
 import com.ciftlik.hayvantakip.dto.SectionCreateDto;
 import com.ciftlik.hayvantakip.dto.SectionResponseDto;
 import com.ciftlik.hayvantakip.dto.VaccinationDto;
+import com.ciftlik.hayvantakip.entity.AnimalStatus;
 import com.ciftlik.hayvantakip.entity.Section;
 import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
@@ -122,13 +123,14 @@ public class SectionService {
                         }).toList();
                 }
 
-                int currentAnimalCount = animalRepository.countBySectionId(section.getId());
+                int activeAnimalCount = (int) animalRepository.countBySectionIdAndStatus(section.getId(),
+                                AnimalStatus.AKTIF);
 
                 return new SectionResponseDto(
                                 section.getId(),
                                 section.getName(),
                                 section.getCapacity(),
-                                currentAnimalCount,
+                                activeAnimalCount,
                                 animalDtos);
         }
 }

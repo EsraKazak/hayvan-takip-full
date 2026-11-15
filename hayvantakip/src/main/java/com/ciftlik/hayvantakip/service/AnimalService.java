@@ -22,7 +22,6 @@ import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.AnimalRepository;
 import com.ciftlik.hayvantakip.repository.SectionRepository;
-
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -38,9 +37,19 @@ public class AnimalService {
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Bölme bulunamadı: " + createDto.sectionId()));
 
-                int currentAnimalCount = animalRepository.countBySectionId(createDto.sectionId());
-                if (currentAnimalCount >= section.getCapacity()) {
+                // Sadece AKTİF hayvanları sayarak kapasite kontrolü yap
+                int activeAnimalCount = animalRepository.countBySectionIdAndStatus(createDto.sectionId(),
+                                AnimalStatus.AKTIF);
+                if (activeAnimalCount >= section.getCapacity()) {
                         throw new BusinessException("Bu bölme dolu! Maksimum kapasite: " + section.getCapacity());
+                }
+
+                // Eğer slot numarası belirtildiyse, o slotta AKTİF başka bir hayvan var mı
+                // kontrol et
+                if (createDto.slotNumber() != null && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
+                                createDto.sectionId(), createDto.slotNumber(), AnimalStatus.AKTIF)) {
+                        throw new BusinessException("Seçilen durak/slot (" + createDto.slotNumber()
+                                        + ") başka bir aktif hayvan tarafından kullanılıyor!");
                 }
 
                 if (animalRepository.findByTagNumber(createDto.tagNumber()).isPresent()) {
@@ -78,11 +87,23 @@ public class AnimalService {
                                                 "Hedef bölme bulunamadı: " + targetSectionId));
 
                 if (!animal.getSection().getId().equals(targetSectionId)) {
-                        int currentCountIntTarget = animalRepository.countBySectionId(targetSectionId);
-                        if (currentCountIntTarget >= targetSection.getCapacity()) {
+                        int activeCountInTarget = animalRepository.countBySectionIdAndStatus(targetSectionId,
+                                        AnimalStatus.AKTIF);
+                        if (activeCountInTarget >= targetSection.getCapacity()) {
                                 throw new BusinessException(
                                                 "Hedef bölme dolu! Maksimum kapasite: " + targetSection.getCapacity());
                         }
+                }
+
+                // Hedef slotta başka bir AKTİF hayvan varsa engelle (aynı padok içinde kendi
+                // mevcut slotu hariç)
+                boolean isSameSlot = animal.getSection().getId().equals(targetSectionId)
+                                && targetSlotNumber != null
+                                && targetSlotNumber.equals(animal.getSlotNumber());
+
+                if (!isSameSlot && targetSlotNumber != null && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
+                                targetSectionId, targetSlotNumber, AnimalStatus.AKTIF)) {
+                        throw new BusinessException("Hedef durak/slot (" + targetSlotNumber + ") dolu!");
                 }
 
                 animal.setSection(targetSection);
@@ -95,11 +116,39 @@ public class AnimalService {
         public AnimalResponseDto updateAnimalStatus(Long animalId, AnimalStatus newStatus) {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
+
+                // Eğer SATILDI veya OLDU olan bir hayvan tekrar AKTİF yapılıyorsa yer kontrolü
+                // yap
+                if (newStatus == AnimalStatus.AKTIF && animal.getStatus() != AnimalStatus.AKTIF) {
+                        Section section = animal.getSection();
+                        if (section != null) {
+                                int activeCount = animalRepository.countBySectionIdAndStatus(section.getId(),
+                                                AnimalStatus.AKTIF);
+                                if (activeCount >= section.getCapacity()) {
+                                        throw new BusinessException("Hayvanın eski padoğu (" + section.getName()
+                                                        + ") şu an dolu! Aktif yapmadan önce boş bir padoğa transfer edin.");
+                                }
+                                // Eski slotu başka bir aktif hayvana verildiyse slotunu boşa çıkar
+                                if (animal.getSlotNumber() != null
+                                                && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
+                                                                section.getId(), animal.getSlotNumber(),
+                                                                AnimalStatus.AKTIF)) {
+                                        animal.setSlotNumber(null);
+                                }
+                        }
+                }
+
                 animal.setStatus(newStatus);
 
                 if (newStatus == AnimalStatus.OLDU) {
-                        animal.setDeathDate(LocalDate.now());
+                        if (animal.getDeathDate() == null) {
+                                animal.setDeathDate(LocalDate.now());
+                        }
+                } else {
+                        animal.setDeathDate(null);
                 }
+
+                // Not: section ve slotNumber bilerek silinmiyor, geçmiş kayıt olarak korunuyor.
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
         }

@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.ciftlik.hayvantakip.entity.Animal;
+import com.ciftlik.hayvantakip.entity.AnimalStatus;
 
 public interface AnimalRepository extends JpaRepository<Animal, Long> {
 
@@ -17,5 +18,15 @@ public interface AnimalRepository extends JpaRepository<Animal, Long> {
     List<Animal> findBySectionId(Long sectionId);
 
     int countBySectionId(Long sectionId);
+
+    // padoktaki hayvanların sadece aktif olanlarını getirmeyi sağlar
+    int countBySectionIdAndStatus(Long sectionId, AnimalStatus status);
+
+    // padotaki belirli slottak, hayvanın durumunu kontrol etmeyi sağlar
+    boolean existsBySectionIdAndSlotNumberAndStatus(Long sectionId, Integer slotNumber, AnimalStatus status);
+
+    // aynı slotta başka aktif hayvanın var olma durmunu kontrol eder
+    boolean existsBySectionIdAndSlotNumberAndStatusAndIdNot(Long sectionId, Integer slotNumber, AnimalStatus status,
+            Long id);
 
 }

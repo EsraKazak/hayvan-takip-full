@@ -17,16 +17,19 @@ export const SectionGridModal: React.FC<SectionGridModalProps> = ({
 }) => {
   if (!section) return null;
 
-  // 1. Seçili padoğa ait tüm hayvanları al
-  const sectionAnimals = animals.filter((a) => a.sectionId === section.id);
+  // DÜZELTME 1: Padoktaki SADECE 'AKTIF' hayvanları en başta filtreliyoruz.
+  // Böylece SATILDI veya OLDU olan hayvanlar kroki kutucuklarında görünmez ve yerleri boşalır.
+  const activeSectionAnimals = animals.filter(
+    (a) => a.sectionId === section.id && a.animalStatus === "AKTIF",
+  );
 
-  // 2. Durak numarası olmayan hayvanları ayır (boş yerlere dağıtmak için)
-  const unassignedAnimals = sectionAnimals.filter(
+  // DÜZELTME 2: Numarasız hayvanları da sadece aktif olanlar arasından seçiyoruz.
+  const unassignedAnimals = activeSectionAnimals.filter(
     (a) => a.slotNumber === null || a.slotNumber === undefined,
   );
   let unassignedIndex = 0;
 
-  // 🔥 KAPASİTEYİ 2 EŞİT SATIRA BÖLÜYORUZ
+  // KAPASİTEYİ 2 EŞİT SATIRA BÖLÜYORUZ
   const halfCapacity = Math.ceil(section.capacity / 2);
   const topRowSlots = Array.from({ length: halfCapacity }, (_, i) => i + 1); // Örn: 1-12
   const bottomRowSlots = Array.from(
@@ -36,10 +39,13 @@ export const SectionGridModal: React.FC<SectionGridModalProps> = ({
 
   // Tek bir durak kartını çizen yardımcı fonksiyon
   const renderSlotCard = (slotNum: number) => {
-    // A) Bu durağa atanmış hayvanı bul
-    let animalInSlot = sectionAnimals.find((a) => a.slotNumber === slotNum);
+    // DÜZELTME 3: Artık 'sectionAnimals' yerine 'activeSectionAnimals' içinde arıyoruz.
+    // Aynı slotta eski satılan hayvan olsa bile sadece yeni aktif hayvan bulunur.
+    let animalInSlot = activeSectionAnimals.find(
+      (a) => a.slotNumber === slotNum,
+    );
 
-    // B) Atanmış yoksa numarasız hayvanları sırayla yerleştir
+    // Atanmış yoksa numarasız aktif hayvanları sırayla yerleştir
     if (!animalInSlot && unassignedIndex < unassignedAnimals.length) {
       animalInSlot = unassignedAnimals[unassignedIndex];
       unassignedIndex++;
@@ -111,7 +117,7 @@ export const SectionGridModal: React.FC<SectionGridModalProps> = ({
           </button>
         </div>
 
-        {/* 🟢 İKİ SATIRLI ÇİFT SIRA YERLEŞİM ALANI */}
+        {/* İKİ SATIRLI ÇİFT SIRA YERLEŞİM ALANI */}
         <div className="p-6 overflow-x-auto bg-gray-50 flex-1 space-y-6">
           {/* ÜST SIRA (1 - N/2) */}
           <div>

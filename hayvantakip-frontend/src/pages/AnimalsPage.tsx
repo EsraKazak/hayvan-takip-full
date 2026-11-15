@@ -414,8 +414,25 @@ export const AnimalsPage: React.FC = () => {
                       <td className="py-3 px-4 text-gray-600">
                         {animal.birthDate}
                       </td>
-                      <td className="py-3 px-4 font-medium text-emerald-700">
-                        {animal.sectionName || `Padok #${animal.sectionId}`}
+                      <td className="py-3 px-4 font-medium">
+                        {animal.animalStatus === "AKTIF" ? (
+                          <span className="text-emerald-700">
+                            {animal.sectionName || `Padok #${animal.sectionId}`}
+                            {animal.slotNumber
+                              ? ` (Durak #${animal.slotNumber})`
+                              : ""}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">
+                            {animal.sectionName || `Padok #${animal.sectionId}`}
+                            {animal.slotNumber
+                              ? ` • Durak #${animal.slotNumber}`
+                              : ""}
+                            <span className="block text-[11px] italic text-gray-400">
+                              (Ayrıldı - Yer Boşaltıldı)
+                            </span>
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-500">
                         {animal.motherTagNumber || "-"}
@@ -444,11 +461,17 @@ export const AnimalsPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
+                          disabled={animal.animalStatus !== "AKTIF"}
+                          title={
+                            animal.animalStatus !== "AKTIF"
+                              ? "Sadece aktif hayvanlar transfer edilebilir"
+                              : "Hayvanı başka padoğa aktar"
+                          }
                           onClick={() => {
                             setSelectedAnimal(animal);
                             setIsTransferModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors"
+                          className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <ArrowRightLeft className="h-3.5 w-3.5" />
                           Transfer Et
