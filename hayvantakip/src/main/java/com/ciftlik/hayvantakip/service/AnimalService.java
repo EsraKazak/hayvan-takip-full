@@ -117,38 +117,24 @@ public class AnimalService {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
-                // Eğer SATILDI veya OLDU olan bir hayvan tekrar AKTİF yapılıyorsa yer kontrolü
-                // yap
-                if (newStatus == AnimalStatus.AKTIF && animal.getStatus() != AnimalStatus.AKTIF) {
-                        Section section = animal.getSection();
-                        if (section != null) {
-                                int activeCount = animalRepository.countBySectionIdAndStatus(section.getId(),
-                                                AnimalStatus.AKTIF);
-                                if (activeCount >= section.getCapacity()) {
-                                        throw new BusinessException("Hayvanın eski padoğu (" + section.getName()
-                                                        + ") şu an dolu! Aktif yapmadan önce boş bir padoğa transfer edin.");
-                                }
-                                // Eski slotu başka bir aktif hayvana verildiyse slotunu boşa çıkar
-                                if (animal.getSlotNumber() != null
-                                                && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
-                                                                section.getId(), animal.getSlotNumber(),
-                                                                AnimalStatus.AKTIF)) {
-                                        animal.setSlotNumber(null);
-                                }
-                        }
+                // Kalıcı durum kuralı: SATILDI veya OLDU olan hayvanın durumu bir daha
+                // değiştirilemez
+                if (animal.getStatus() != AnimalStatus.AKTIF) {
+                        throw new BusinessException("Satılmış veya ölmüş bir hayvanın durumu tekrar değiştirilemez!");
+                }
+
+                if (newStatus == AnimalStatus.AKTIF) {
+                        return convertToDto(animal);
                 }
 
                 animal.setStatus(newStatus);
 
-                if (newStatus == AnimalStatus.OLDU) {
-                        if (animal.getDeathDate() == null) {
-                                animal.setDeathDate(LocalDate.now());
-                        }
-                } else {
-                        animal.setDeathDate(null);
+                if (newStatus == AnimalStatus.OLDU && animal.getDeathDate() == null) {
+                        animal.setDeathDate(LocalDate.now());
                 }
 
-                // Not: section ve slotNumber bilerek silinmiyor, geçmiş kayıt olarak korunuyor.
+                // Not: section ve slotNumber tarihsel kayıt olarak korunur, ancak aktif
+                // olmadığı için padok kapasitesi boşalır.
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
         }
@@ -261,7 +247,8 @@ public class AnimalService {
                                         .filter(a -> a.getStatus() == AnimalStatus.AKTIF).toList();
 
                 } else if (dtos.animalIds() != null && !dtos.animalIds().isEmpty()) {
-                        targetAnimal = animalRepository.findAllById(dtos.animalIds());
+                        targetAnimal = animalRepository.findAllById(dtos.animalIds()).stream()
+                                        .filter(a -> a.getStatus() == AnimalStatus.AKTIF).toList();
                 } else {
                         throw new BusinessException("Toplu Aşılama İçin En Az Bir Tane Hayvan Seçmelisiniz");
                 }

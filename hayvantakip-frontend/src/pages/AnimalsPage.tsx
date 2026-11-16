@@ -14,6 +14,7 @@ import {
   Filter,
   RefreshCw,
   Syringe,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BulkVaccinationModal } from "../components/BulkVaccinationModal";
@@ -35,6 +36,13 @@ export const AnimalsPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
+  // Durum Değişikliği Onay Modalı State'leri
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    animal: AnimalResponseDTO;
+    newStatus: "SATILDI" | "OLDU";
+  } | null>(null);
+  const [isStatusUpdating, setIsStatusUpdating] = useState(false);
+
   // Form State - Ekleme
   const [tagNumber, setTagNumber] = useState("");
   const [name, setName] = useState("");
@@ -51,27 +59,9 @@ export const AnimalsPage: React.FC = () => {
   const [targetSectionId, setTargetSectionId] = useState<number | "">("");
   const [targetSlotNumber, setTargetSlotNumber] = useState<number | "">("");
 
-  // toplu aşılama için
+  // Toplu aşılama için
   const [selectedAnimalIds, setSelectedAnimalIds] = useState<number[]>([]);
   const [isBulkVaccineModalOpen, setIsBulkVaccineModalOpen] = useState(false);
-
-  const toggleSelectAnimal = (id: number) => {
-    setSelectedAnimalIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedAnimalIds.length === filteredAnimals.length) {
-      setSelectedAnimalIds([]);
-    } else {
-      setSelectedAnimalIds(filteredAnimals.map((a) => a.id));
-    }
-  };
-
-  const selectedAnimalObjects = animals.filter((a) =>
-    selectedAnimalIds.includes(a.id),
-  );
 
   // Verileri Çekme
   const fetchData = async () => {
@@ -139,7 +129,7 @@ export const AnimalsPage: React.FC = () => {
         tagNumber,
         name: name.trim() || undefined,
         birthDate,
-        gender, // Backend @NotBlank bekliyor ("DISI" veya "ERKEK")
+        gender,
         breed: breed.trim(),
         sectionId: Number(selectedSectionId),
         motherId: selectedMotherId ? Number(selectedMotherId) : undefined,
@@ -156,6 +146,7 @@ export const AnimalsPage: React.FC = () => {
       setBreed("");
       setSelectedSectionId("");
       setSelectedMotherId("");
+      setSlotNumber("");
       setIsAddModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -190,25 +181,35 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Durum Güncelleme
-  const handleStatusChange = async (
-    animalId: number,
-    newStatus: AnimalStatus,
-  ) => {
+  // Durum Seçildiğinde Onay Modalını Aç
+  const handleStatusSelect = (animal: AnimalResponseDTO, value: string) => {
+    if (value === "SATILDI" || value === "OLDU") {
+      setPendingStatusChange({ animal, newStatus: value });
+    }
+  };
+
+  // Onay Modalından "Evet, Onayla" Denildiğinde Kaydet
+  const confirmStatusChange = async () => {
+    if (!pendingStatusChange) return;
     try {
-      await animalApi.updateStatus(animalId, newStatus);
-      toast.info(`Hayvan durumu '${newStatus}' olarak güncellendi.`);
-      setAnimals((prevAnimals) =>
-        prevAnimals.map((animal) =>
-          animal.id === animalId
-            ? { ...animal, animalStatus: newStatus }
-            : animal,
-        ),
+      setIsStatusUpdating(true);
+      await animalApi.updateStatus(
+        pendingStatusChange.animal.id,
+        pendingStatusChange.newStatus as AnimalStatus,
       );
+      toast.success(
+        `${pendingStatusChange.animal.tagNumber} küpeli hayvan '${
+          pendingStatusChange.newStatus === "SATILDI" ? "SATILDI" : "ÖLDÜ"
+        }' olarak güncellendi ve yeri boşaltıldı.`,
+      );
+      setPendingStatusChange(null);
+      await fetchData();
     } catch (err: any) {
       const msg =
         err.response?.data?.message || "Durum güncellenirken hata oluştu.";
       toast.error(msg);
+    } finally {
+      setIsStatusUpdating(false);
     }
   };
 
@@ -220,20 +221,48 @@ export const AnimalsPage: React.FC = () => {
     fetchData();
   };
 
-  // 🔥 CANLI FİLTRELEME MANTIĞI 🔥
+  // CANLI FİLTRELEME MANTIĞI
   const filteredAnimals = animals.filter((animal) => {
-    // 1. Durum Filtresi Kontrolü
     const matchesStatus =
       selectedStatusFilter === "ALL" ||
       animal.animalStatus === selectedStatusFilter;
 
-    // 2. Padok Filtresi Kontrolü
     const matchesSection =
       selectedSectionFilter === "ALL" ||
       animal.sectionId === Number(selectedSectionFilter);
 
     return matchesStatus && matchesSection;
   });
+
+  // Listede o an görünen sadece AKTİF hayvanlar (Toplu aşılama seçimi için)
+  const activeFilteredAnimals = filteredAnimals.filter(
+    (a) => a.animalStatus === "AKTIF",
+  );
+
+  const toggleSelectAnimal = (animal: AnimalResponseDTO) => {
+    if (animal.animalStatus !== "AKTIF") return;
+    setSelectedAnimalIds((prev) =>
+      prev.includes(animal.id)
+        ? prev.filter((item) => item !== animal.id)
+        : [...prev, animal.id],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (
+      activeFilteredAnimals.length > 0 &&
+      selectedAnimalIds.length === activeFilteredAnimals.length
+    ) {
+      setSelectedAnimalIds([]);
+    } else {
+      setSelectedAnimalIds(activeFilteredAnimals.map((a) => a.id));
+    }
+  };
+
+  // Toplu aşılama modalına sadece aktif olan seçili hayvanları gönder
+  const selectedAnimalObjects = animals.filter(
+    (a) => selectedAnimalIds.includes(a.id) && a.animalStatus === "AKTIF",
+  );
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -255,7 +284,8 @@ export const AnimalsPage: React.FC = () => {
           >
             <Syringe className="h-5 w-5" />
             Toplu Aşılama{" "}
-            {selectedAnimalIds.length > 0 && `(${selectedAnimalIds.length})`}
+            {selectedAnimalObjects.length > 0 &&
+              `(${selectedAnimalObjects.length})`}
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -267,7 +297,7 @@ export const AnimalsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 🔍 ARAMA & FİLTRELEME ÇUBUĞU */}
+      {/* ARAMA & FİLTRELEME ÇUBUĞU */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
         {/* Sol Taraf: Arama Kutusu */}
         <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
@@ -357,12 +387,15 @@ export const AnimalsPage: React.FC = () => {
                   <th className="py-3 px-4 w-10">
                     <input
                       type="checkbox"
+                      disabled={activeFilteredAnimals.length === 0}
                       checked={
-                        filteredAnimals.length > 0 &&
-                        selectedAnimalIds.length === filteredAnimals.length
+                        activeFilteredAnimals.length > 0 &&
+                        selectedAnimalIds.length ===
+                          activeFilteredAnimals.length
                       }
                       onChange={toggleSelectAll}
-                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      title="Tüm aktif hayvanları seç"
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     />
                   </th>
                   <th className="py-3 px-4">Kulak No</th>
@@ -383,105 +416,207 @@ export const AnimalsPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredAnimals.map((animal) => (
-                    <tr
-                      key={animal.id}
-                      className="hover:bg-gray-50/50 transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedAnimalIds.includes(animal.id)}
-                          onChange={() => toggleSelectAnimal(animal.id)}
-                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        />
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-gray-800 flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-emerald-600" />
-                        {animal.tagNumber}
-                      </td>
-                      <td className="py-3 px-4 text-gray-700 font-medium">
-                        {animal.name || "-"}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        <span className="font-medium text-gray-800">
-                          {animal.gender === "DISI" ? "Dişi" : "Erkek"}
-                        </span>
-                        <span className="text-xs text-gray-400 block">
-                          {animal.breed || "-"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {animal.birthDate}
-                      </td>
-                      <td className="py-3 px-4 font-medium">
-                        {animal.animalStatus === "AKTIF" ? (
-                          <span className="text-emerald-700">
-                            {animal.sectionName || `Padok #${animal.sectionId}`}
-                            {animal.slotNumber
-                              ? ` (Durak #${animal.slotNumber})`
-                              : ""}
+                  filteredAnimals.map((animal) => {
+                    const isActive = animal.animalStatus === "AKTIF";
+                    return (
+                      <tr
+                        key={animal.id}
+                        className={`transition-colors ${
+                          isActive
+                            ? "hover:bg-gray-50/50"
+                            : "bg-gray-50/60 text-gray-500"
+                        }`}
+                      >
+                        <td className="py-3 px-4">
+                          <input
+                            type="checkbox"
+                            disabled={!isActive}
+                            checked={
+                              isActive && selectedAnimalIds.includes(animal.id)
+                            }
+                            onChange={() => toggleSelectAnimal(animal)}
+                            title={
+                              !isActive
+                                ? "Satılan veya ölen hayvanlar aşılamaya seçilemez"
+                                : "Aşılama için seç"
+                            }
+                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-gray-800 flex items-center gap-2">
+                          <Tag
+                            className={`h-4 w-4 ${
+                              isActive ? "text-emerald-600" : "text-gray-400"
+                            }`}
+                          />
+                          {animal.tagNumber}
+                        </td>
+                        <td className="py-3 px-4 text-gray-700 font-medium">
+                          {animal.name || "-"}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          <span className="font-medium text-gray-800">
+                            {animal.gender === "DISI" ? "Dişi" : "Erkek"}
                           </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">
-                            {animal.sectionName || `Padok #${animal.sectionId}`}
-                            {animal.slotNumber
-                              ? ` • Durak #${animal.slotNumber}`
-                              : ""}
-                            <span className="block text-[11px] italic text-gray-400">
-                              (Ayrıldı - Yer Boşaltıldı)
+                          <span className="text-xs text-gray-400 block">
+                            {animal.breed || "-"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {animal.birthDate}
+                        </td>
+                        <td className="py-3 px-4 font-medium">
+                          {isActive ? (
+                            <span className="text-emerald-700">
+                              {animal.sectionName ||
+                                `Padok #${animal.sectionId}`}
+                              {animal.slotNumber
+                                ? ` (Durak #${animal.slotNumber})`
+                                : ""}
                             </span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-gray-500">
-                        {animal.motherTagNumber || "-"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={animal.animalStatus}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              animal.id,
-                              e.target.value as AnimalStatus,
-                            )
-                          }
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-full border-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${
-                            animal.animalStatus === "AKTIF"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : animal.animalStatus === "SATILDI"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          <option value="AKTIF">AKTİF</option>
-                          <option value="SATILDI">SATILDI</option>
-                          <option value="OLDU">ÖLDÜ</option>
-                        </select>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          disabled={animal.animalStatus !== "AKTIF"}
-                          title={
-                            animal.animalStatus !== "AKTIF"
-                              ? "Sadece aktif hayvanlar transfer edilebilir"
-                              : "Hayvanı başka padoğa aktar"
-                          }
-                          onClick={() => {
-                            setSelectedAnimal(animal);
-                            setIsTransferModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <ArrowRightLeft className="h-3.5 w-3.5" />
-                          Transfer Et
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">
+                              {animal.sectionName ||
+                                `Padok #${animal.sectionId}`}
+                              {animal.slotNumber
+                                ? ` • Durak #${animal.slotNumber}`
+                                : ""}
+                              <span className="block text-[11px] italic text-gray-400">
+                                (Ayrıldı - Yer Boşaltıldı)
+                              </span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-gray-500">
+                          {animal.motherTagNumber || "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          {isActive ? (
+                            <select
+                              value={animal.animalStatus}
+                              onChange={(e) =>
+                                handleStatusSelect(animal, e.target.value)
+                              }
+                              className="px-2.5 py-1 text-xs font-semibold rounded-full border-none bg-emerald-100 text-emerald-800 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                            >
+                              <option value="AKTIF">AKTİF</option>
+                              <option value="SATILDI">SATILDI</option>
+                              <option value="OLDU">ÖLDÜ</option>
+                            </select>
+                          ) : (
+                            <span
+                              title="Bu kayıt kilitlenmiştir, geri alınamaz"
+                              className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full select-none ${
+                                animal.animalStatus === "SATILDI"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {animal.animalStatus === "SATILDI"
+                                ? "SATILDI"
+                                : "ÖLDÜ"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            disabled={!isActive}
+                            title={
+                              !isActive
+                                ? "Sadece aktif hayvanlar transfer edilebilir"
+                                : "Hayvanı başka padoğa aktar"
+                            }
+                            onClick={() => {
+                              setSelectedAnimal(animal);
+                              setIsTransferModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                            Transfer Et
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Durum Değişikliği Onay Penceresi */}
+      {pendingStatusChange && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className={`p-2.5 rounded-full ${
+                  pendingStatusChange.newStatus === "SATILDI"
+                    ? "bg-blue-100 text-blue-600"
+                    : "bg-red-100 text-red-600"
+                }`}
+              >
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                {pendingStatusChange.newStatus === "SATILDI"
+                  ? "Hayvan Satış Onayı"
+                  : "Hayvan Ölüm Kaydı Onayı"}
+              </h3>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+              <span className="font-bold text-gray-900">
+                {pendingStatusChange.animal.tagNumber}
+              </span>{" "}
+              {pendingStatusChange.animal.name
+                ? `(${pendingStatusChange.animal.name}) `
+                : ""}
+              küpeli hayvanı{" "}
+              <span
+                className={`font-bold ${
+                  pendingStatusChange.newStatus === "SATILDI"
+                    ? "text-blue-700"
+                    : "text-red-700"
+                }`}
+              >
+                {pendingStatusChange.newStatus === "SATILDI"
+                  ? "SATILDI"
+                  : "ÖLDÜ"}
+              </span>{" "}
+              olarak işaretlemek istediğinize emin misiniz?
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mb-5">
+              <strong>Dikkat:</strong> Bu işlem kalıcıdır ve geri alınamaz.
+              Hayvanın padok ve durak yeri yeni hayvanlar için boşaltılacak,
+              ancak tarihsel kaydı listede korunacaktır.
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isStatusUpdating}
+                onClick={() => setPendingStatusChange(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                disabled={isStatusUpdating}
+                onClick={confirmStatusChange}
+                className={`px-4 py-2 text-sm text-white rounded-lg font-medium shadow-sm ${
+                  pendingStatusChange.newStatus === "SATILDI"
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {isStatusUpdating ? "Kaydediliyor..." : "Evet, Onayla"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -509,7 +644,7 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Cinsiyet (*) - BACKEND @NotBlank BEKLİYOR */}
+              {/* Cinsiyet (*) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cinsiyet (*)
@@ -548,7 +683,6 @@ export const AnimalsPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  aria-required
                   placeholder="Örn: Holstein, Simental vb."
                   value={breed}
                   onChange={(e) => setBreed(e.target.value)}
@@ -612,7 +746,7 @@ export const AnimalsPage: React.FC = () => {
                 >
                   <option value="">Anne Seçilmedi</option>
                   {animals
-                    .filter((m) => m.gender === "DISI" || !m.gender) // Sadece dişi olanlar anne seçilebilir
+                    .filter((m) => m.gender === "DISI" || !m.gender)
                     .map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.tagNumber} {m.name ? `(${m.name})` : ""}
@@ -620,6 +754,7 @@ export const AnimalsPage: React.FC = () => {
                     ))}
                 </select>
               </div>
+
               {/* Durak / Slot Numarası (Opsiyonel) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -745,6 +880,8 @@ export const AnimalsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal: Toplu Aşılama */}
       <BulkVaccinationModal
         isOpen={isBulkVaccineModalOpen}
         onClose={() => setIsBulkVaccineModalOpen(false)}
