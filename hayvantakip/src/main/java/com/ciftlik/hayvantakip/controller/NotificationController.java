@@ -55,4 +55,10 @@ public class NotificationController {
                         ? sentCount + " alıcıya bildirim e-postası gönderildi."
                         : "Gönderilecek aktif bir uyarı bulunamadı."));
     }
+
+    // Render ve Supabase'i uyanık tutmak için hafif sağlık kontrolü endpoint'i
+    @GetMapping("/ping")
+    public ResponseEntity<String> ping() {
+        return ResponseEntity.ok("OK - Sistem Aktif");
+    }
 }

@@ -1,14 +1,16 @@
 package com.ciftlik.hayvantakip.service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,8 +24,8 @@ import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.InseminationRecordRepository;
 import com.ciftlik.hayvantakip.repository.NotificationRecipientRepository;
 import com.ciftlik.hayvantakip.repository.VaccinationRecordRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -33,20 +35,18 @@ public class NotificationService {
     private final VaccinationRecordRepository vaccinationRepository;
     private final InseminationRecordRepository inseminationRepository;
     private final NotificationRecipientRepository recipientRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired(required = false)
-    private JavaMailSender mailSender;
+    // application.properties içindeki google.script.mail.url değerini okur
+    @Value("${google.script.mail.url:}")
+    private String googleScriptUrl;
 
-    @Value("${spring.mail.username:}")
-    private String fromEmail;
-
-    // 1. Uygulama İçi Aktif Bildirimleri Getir (Önümüzdeki 7 gün aşı, 14 gün doğum)
+    // 1. Uygulama İçi Aktif Bildirimleri Getir (Senin mevcut kodunla birebir aynı)
     @Transactional(readOnly = true)
     public List<NotificationItemDto> getActiveAlerts() {
         LocalDate today = LocalDate.now();
         List<NotificationItemDto> alerts = new ArrayList<>();
 
-        // Gecikmiş veya 7 gün içinde gelecek aşılar
         List<VaccinationRecord> vaccinations = vaccinationRepository
                 .findUpcomingOrOverdueVaccinations(today.plusDays(7));
 
@@ -67,7 +67,6 @@ public class NotificationService {
                     days));
         }
 
-        // 3 gün gecikmiş veya 14 gün içinde beklenen doğumlar
         List<InseminationRecord> births = inseminationRepository
                 .findUpcomingBirths(today.minusDays(3), today.plusDays(14));
 
@@ -91,7 +90,7 @@ public class NotificationService {
         return alerts;
     }
 
-    // 2. Alıcı Yönetimi (CRUD)
+    // 2. Alıcı Yönetimi (Senin mevcut kodunla birebir aynı)
     @Transactional(readOnly = true)
     public List<RecipientDto> getAllRecipients() {
         return recipientRepository.findAll().stream()
@@ -126,17 +125,17 @@ public class NotificationService {
         recipientRepository.deleteById(id);
     }
 
-    // 3. Çoklu Alıcıya E-Posta Gönderimi
+    // 3. Çoklu Alıcıya Google Apps Script (HTTPS) Üzerinden E-Posta Gönderimi
     @Transactional(readOnly = true)
     public int sendDailyEmailNotifications() {
-        if (mailSender == null || fromEmail == null || fromEmail.isBlank()) {
+        if (googleScriptUrl == null || googleScriptUrl.isBlank()) {
             throw new BusinessException(
-                    "Mail sunucusu yapılandırılmamış! Render/application.properties mail ayarlarını kontrol edin.");
+                    "Mail servis URL'si (GOOGLE_SCRIPT_MAIL_URL) tanımlanmamış!");
         }
 
         List<NotificationItemDto> allAlerts = getActiveAlerts();
         if (allAlerts.isEmpty()) {
-            return 0; // Gönderilecek yaklaşan/geciken uyarı yok
+            return 0;
         }
 
         List<NotificationRecipient> recipients = recipientRepository.findByActiveTrue();
@@ -144,26 +143,43 @@ public class NotificationService {
             throw new BusinessException("Bildirim gönderilecek aktif alıcı bulunamadı.");
         }
 
+        // Google Apps Script yönlendirmelerini (302) takip etmesi için NORMAL ayarı
+        // şarttır
+        HttpClient client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+
         int sentCount = 0;
         for (NotificationRecipient recipient : recipients) {
-            // Alıcının tercihine göre sadece ilgilendiği bildirimleri filtrele
             List<NotificationItemDto> userAlerts = allAlerts.stream()
                     .filter(a -> (a.type().equals("VACCINATION") && recipient.isReceiveVaccinationAlerts())
                             || (a.type().equals("BIRTH") && recipient.isReceiveBirthAlerts()))
                     .toList();
 
-            if (userAlerts.isEmpty())
+            if (userAlerts.isEmpty()) {
                 continue;
+            }
 
             try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-                helper.setFrom(fromEmail);
-                helper.setTo(recipient.getEmail());
-                helper.setSubject("🐄 Çiftlik Günlük Hatırlatma Raporu (" + userAlerts.size() + " Uyarı)");
-                helper.setText(buildHtmlEmail(recipient.getFullName(), userAlerts), true);
+                Map<String, String> payload = Map.of(
+                        "to", recipient.getEmail(),
+                        "subject", "Çiftlik Günlük Hatırlatma Raporu (" + userAlerts.size() + " Uyarı)",
+                        "htmlBody", buildHtmlEmail(recipient.getFullName(), userAlerts));
 
-                mailSender.send(message);
+                String jsonBody = objectMapper.writeValueAsString(payload);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(googleScriptUrl.trim()))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .build();
+
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() >= 400 || response.body().contains("\"ERROR\"")) {
+                    throw new BusinessException(
+                            "Mail gönderim hatası (" + recipient.getEmail() + "): " + response.body());
+                }
                 sentCount++;
             } catch (Exception e) {
                 throw new BusinessException(
@@ -173,6 +189,7 @@ public class NotificationService {
         return sentCount;
     }
 
+    // 4. HTML Şablonu (Senin mevcut kodunla birebir aynı)
     private String buildHtmlEmail(String recipientName, List<NotificationItemDto> alerts) {
         StringBuilder sb = new StringBuilder();
         sb.append(
