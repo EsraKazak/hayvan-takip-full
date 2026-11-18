@@ -81,3 +81,25 @@ export interface bulkVaccinationResponseDTO {
   message: string;
   vaccinatedCount: number;
 }
+
+export interface NotificationItemDTO {
+  id: string;
+  type: "VACCINATION" | "BIRTH";
+  severity: "OVERDUE" | "UPCOMING";
+  animalTagNumber: string;
+  animalName?: string;
+  sectionName: string;
+  title: string;
+  targetDate: string;
+  daysRemaining: number;
+}
+
+export interface RecipientDTO {
+  id?: number;
+  fullName: string;
+  email: string;
+  role: string;
+  receiveVaccinationAlerts: boolean;
+  receiveBirthAlerts: boolean;
+  active?: boolean;
+}
