@@ -8,6 +8,7 @@ import {
   Mail,
   Syringe,
   Baby,
+  LogOut,
   AlertCircle,
 } from "lucide-react";
 import { notificationApi } from "../api/notificationApi";
@@ -17,9 +18,14 @@ import { NotificationModal } from "./NotificationModal";
 interface NavbarProps {
   activeTab: "dashboard" | "sections" | "animals";
   setActiveTab: (tab: "dashboard" | "sections" | "animals") => void;
+  onLogout: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTab,
+  setActiveTab,
+  onLogout,
+}) => {
   const [alerts, setAlerts] = useState<NotificationItemDTO[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRecipientModalOpen, setIsRecipientModalOpen] = useState(false);
@@ -224,6 +230,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 className="p-2 rounded-lg text-emerald-100 hover:bg-emerald-600 transition-colors"
               >
                 <Mail className="h-5 w-5" />
+              </button>
+              {/* Çıkış Yap Butonu */}
+              <button
+                onClick={onLogout}
+                title="Çıkış Yap"
+                className="p-2 rounded-lg text-emerald-100 hover:bg-red-600 hover:text-white transition-colors"
+              >
+                <LogOut className="h-5 w-5" />
               </button>
             </div>
           </div>
