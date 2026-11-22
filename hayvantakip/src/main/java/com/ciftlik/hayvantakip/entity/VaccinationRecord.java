@@ -35,4 +35,7 @@ public class VaccinationRecord {
     @JoinColumn(name = "animal_id", nullable = false)
     private Animal animal;
 
+    @Column(nullable = false)
+    private boolean completed = false;
+
 }

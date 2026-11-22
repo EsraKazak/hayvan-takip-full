@@ -700,7 +700,25 @@ export const AnimalsPage: React.FC = () => {
                   required
                   max={todayStr}
                   value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
+                  onChange={(e) => {
+                    const newBirthDate = e.target.value;
+                    setBirthDate(newBirthDate);
+                    if (selectedMotherId) {
+                      const chosenMother = animals.find(
+                        (a) => a.id === selectedMotherId,
+                      );
+                      if (
+                        chosenMother &&
+                        ((chosenMother.animalStatus === "OLDU" &&
+                          (!chosenMother.deathDate ||
+                            newBirthDate > chosenMother.deathDate)) ||
+                          (chosenMother.birthDate &&
+                            newBirthDate <= chosenMother.birthDate))
+                      ) {
+                        setSelectedMotherId("");
+                      }
+                    }
+                  }}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
@@ -746,10 +764,30 @@ export const AnimalsPage: React.FC = () => {
                 >
                   <option value="">Anne Seçilmedi</option>
                   {animals
-                    .filter((m) => m.gender === "DISI" || !m.gender)
+                    .filter((m) => {
+                      // 1. Sadece dişi hayvanlar anne olabilir
+                      if (m.gender !== "DISI" && m.gender) return false;
+                      // 2. Satılmış hayvanları gizle
+                      if (m.animalStatus === "SATILDI") return false;
+                      // 3. Ölmüşse: yalnızca buzağının doğum tarihi annenin ölüm tarihinden önce/aynı gün ise göster
+                      if (m.animalStatus === "OLDU") {
+                        if (!m.deathDate || !birthDate) return false;
+                        if (birthDate > m.deathDate) return false;
+                      }
+                      // 4. Annenin doğum tarihi girilen doğum tarihinden büyük veya eşitse gizle
+                      if (
+                        m.birthDate &&
+                        birthDate &&
+                        birthDate <= m.birthDate
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
                     .map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.tagNumber} {m.name ? `(${m.name})` : ""}
+                        {m.animalStatus === "OLDU" ? " (Öldü)" : ""}
                       </option>
                     ))}
                 </select>
@@ -890,6 +928,7 @@ export const AnimalsPage: React.FC = () => {
         onSuccess={() => {
           setSelectedAnimalIds([]);
           fetchData();
+          window.dispatchEvent(new Event("alerts:refresh"));
         }}
       />
     </div>

@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.ciftlik.hayvantakip.entity.Animal;
 import com.ciftlik.hayvantakip.entity.AnimalStatus;
@@ -29,4 +31,7 @@ public interface AnimalRepository extends JpaRepository<Animal, Long> {
     boolean existsBySectionIdAndSlotNumberAndStatusAndIdNot(Long sectionId, Integer slotNumber, AnimalStatus status,
             Long id);
 
+    // hayvaın slot numarasını yazmadığımızda null atmasını engellemek için
+    @Query("SELECT a.slotNumber FROM Animal a WHERE a.section.id = :sectionId AND a.status = 'AKTIF' AND a.slotNumber IS NOT NULL")
+    List<Integer> findOccupiedSlotNumbersBySectionId(@Param("sectionId") Long sectionId);
 }

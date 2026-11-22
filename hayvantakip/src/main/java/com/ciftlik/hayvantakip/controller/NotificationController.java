@@ -61,4 +61,10 @@ public class NotificationController {
     public ResponseEntity<String> ping() {
         return ResponseEntity.ok("OK - Sistem Aktif");
     }
+
+    @PostMapping("/alerts/{alertId}/dismiss")
+    public ResponseEntity<Void> dismissAlert(@PathVariable String alertId) {
+        notificationService.dismissAlert(alertId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -2,7 +2,10 @@ package com.ciftlik.hayvantakip.service;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,19 @@ public class AnimalService {
         private final AnimalRepository animalRepository;
         private final SectionRepository sectionRepository;
 
+        // İlk boş slot numarasını bulan yardımcı metot
+        private Integer findFirstAvailableSlot(Long sectionId, int capacity) {
+                Set<Integer> occupiedSlots = new HashSet<>(
+                                animalRepository.findOccupiedSlotNumbersBySectionId(sectionId));
+
+                for (int slot = 1; slot <= capacity; slot++) {
+                        if (!occupiedSlots.contains(slot)) {
+                                return slot;
+                        }
+                }
+                throw new BusinessException("Bu bölmede boş durak/slot kalmamış!");
+        }
+
         @Transactional
         public AnimalResponseDto addAnimal(AnimalCreateDto createDto) {
                 Section section = sectionRepository.findById(createDto.sectionId())
@@ -44,12 +60,21 @@ public class AnimalService {
                         throw new BusinessException("Bu bölme dolu! Maksimum kapasite: " + section.getCapacity());
                 }
 
-                // Eğer slot numarası belirtildiyse, o slotta AKTİF başka bir hayvan var mı
-                // kontrol et
-                if (createDto.slotNumber() != null && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
-                                createDto.sectionId(), createDto.slotNumber(), AnimalStatus.AKTIF)) {
-                        throw new BusinessException("Seçilen durak/slot (" + createDto.slotNumber()
-                                        + ") başka bir aktif hayvan tarafından kullanılıyor!");
+                // Slot numarası girildiyse kontrol et, boş bırakıldıysa ilk boş slotu otomatik
+                // ata
+                Integer assignedSlot = createDto.slotNumber();
+                if (assignedSlot != null) {
+                        if (assignedSlot < 1 || assignedSlot > section.getCapacity()) {
+                                throw new BusinessException("Durak/slot numarası 1 ile " + section.getCapacity()
+                                                + " arasında olmalıdır!");
+                        }
+                        if (animalRepository.existsBySectionIdAndSlotNumberAndStatus(
+                                        createDto.sectionId(), assignedSlot, AnimalStatus.AKTIF)) {
+                                throw new BusinessException("Seçilen durak/slot (" + assignedSlot
+                                                + ") başka bir aktif hayvan tarafından kullanılıyor!");
+                        }
+                } else {
+                        assignedSlot = findFirstAvailableSlot(createDto.sectionId(), section.getCapacity());
                 }
 
                 if (animalRepository.findByTagNumber(createDto.tagNumber()).isPresent()) {
@@ -64,12 +89,36 @@ public class AnimalService {
                 animal.setBreed(createDto.breed());
                 animal.setSection(section);
                 animal.setStatus(AnimalStatus.AKTIF);
-                animal.setSlotNumber(createDto.slotNumber());
+                animal.setSlotNumber(assignedSlot);
 
+                // annenin dişi olmasını aktif olan hayvanın seçilmesini sağlamak için
                 if (createDto.motherId() != null) {
                         Animal mother = animalRepository.findById(createDto.motherId())
                                         .orElseThrow(() -> new ResourceNotFoundException(
                                                         "Anne kaydı bulunamadı: " + createDto.motherId()));
+
+                        if (!"DISI".equalsIgnoreCase(mother.getGender())) {
+                                throw new BusinessException("Anne olarak seçilen hayvan dişi olmalıdır!");
+                        }
+
+                        if (mother.getStatus() == AnimalStatus.SATILDI) {
+                                throw new BusinessException("Satılmış bir hayvan anne olarak seçilemez!");
+                        }
+
+                        if (mother.getStatus() == AnimalStatus.OLDU && mother.getDeathDate() != null
+                                        && createDto.birthDate() != null
+                                        && createDto.birthDate().isAfter(mother.getDeathDate())) {
+                                throw new BusinessException("Anne hayvan (" + mother.getTagNumber()
+                                                + "), buzağının doğum tarihinden önce (" + mother.getDeathDate()
+                                                + ") ölmüş!");
+                        }
+
+                        if (mother.getBirthDate() != null && createDto.birthDate() != null
+                                        && !createDto.birthDate().isAfter(mother.getBirthDate())) {
+                                throw new BusinessException(
+                                                "Buzağının doğum tarihi annenin doğum tarihinden sonra olmalıdır!");
+                        }
+
                         animal.setMother(mother);
                 }
 
@@ -95,19 +144,29 @@ public class AnimalService {
                         }
                 }
 
-                // Hedef slotta başka bir AKTİF hayvan varsa engelle (aynı padok içinde kendi
-                // mevcut slotu hariç)
-                boolean isSameSlot = animal.getSection().getId().equals(targetSectionId)
-                                && targetSlotNumber != null
-                                && targetSlotNumber.equals(animal.getSlotNumber());
+                Integer assignedSlot = targetSlotNumber;
+                if (assignedSlot != null) {
+                        if (assignedSlot < 1 || assignedSlot > targetSection.getCapacity()) {
+                                throw new BusinessException("Durak/slot numarası 1 ile " + targetSection.getCapacity()
+                                                + " arasında olmalıdır!");
+                        }
+                        boolean isSameSlot = animal.getSection().getId().equals(targetSectionId)
+                                        && assignedSlot.equals(animal.getSlotNumber());
 
-                if (!isSameSlot && targetSlotNumber != null && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
-                                targetSectionId, targetSlotNumber, AnimalStatus.AKTIF)) {
-                        throw new BusinessException("Hedef durak/slot (" + targetSlotNumber + ") dolu!");
+                        if (!isSameSlot && animalRepository.existsBySectionIdAndSlotNumberAndStatus(
+                                        targetSectionId, assignedSlot, AnimalStatus.AKTIF)) {
+                                throw new BusinessException("Hedef durak/slot (" + assignedSlot + ") dolu!");
+                        }
+                } else {
+                        if (animal.getSection().getId().equals(targetSectionId) && animal.getSlotNumber() != null) {
+                                assignedSlot = animal.getSlotNumber();
+                        } else {
+                                assignedSlot = findFirstAvailableSlot(targetSectionId, targetSection.getCapacity());
+                        }
                 }
 
                 animal.setSection(targetSection);
-                animal.setSlotNumber(targetSlotNumber);
+                animal.setSlotNumber(assignedSlot);
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
         }
@@ -117,8 +176,6 @@ public class AnimalService {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
-                // Kalıcı durum kuralı: SATILDI veya OLDU olan hayvanın durumu bir daha
-                // değiştirilemez
                 if (animal.getStatus() != AnimalStatus.AKTIF) {
                         throw new BusinessException("Satılmış veya ölmüş bir hayvanın durumu tekrar değiştirilemez!");
                 }
@@ -133,8 +190,6 @@ public class AnimalService {
                         animal.setDeathDate(LocalDate.now());
                 }
 
-                // Not: section ve slotNumber tarihsel kayıt olarak korunur, ancak aktif
-                // olmadığı için padok kapasitesi boşalır.
                 Animal updateAnimal = animalRepository.save(animal);
                 return convertToDto(updateAnimal);
         }
@@ -155,7 +210,6 @@ public class AnimalService {
                                 .toList();
         }
 
-        // Entity -> DTO Dönüşüm Metodu (Güvenli Katman)
         private AnimalResponseDto convertToDto(Animal animal) {
                 Long sectionId = (animal.getSection() != null) ? animal.getSection().getId() : null;
                 String sectionName = (animal.getSection() != null) ? animal.getSection().getName() : null;
@@ -210,6 +264,36 @@ public class AnimalService {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
 
+                if (animal.getStatus() != AnimalStatus.AKTIF) {
+                        throw new BusinessException("Satılmış veya ölmüş bir hayvana aşı kaydı eklenemez!");
+                }
+
+                if (animal.getBirthDate() != null && dto.appliedDate() != null
+                                && dto.appliedDate().isBefore(animal.getBirthDate())) {
+                        throw new BusinessException("Aşı uygulama tarihi (" + dto.appliedDate()
+                                        + "), hayvanın doğum tarihinden (" + animal.getBirthDate() + ") önce olamaz!");
+                }
+
+                if (dto.nextDueDate() != null && dto.appliedDate() != null
+                                && dto.nextDueDate().isBefore(dto.appliedDate())) {
+                        throw new BusinessException("Sonraki aşı tarihi, uygulama tarihinden önce olamaz!");
+                }
+
+                Locale trLocale = Locale.forLanguageTag("tr");
+                String newVaccineLower = dto.vaccineName().trim().toLowerCase(trLocale);
+
+                for (VaccinationRecord oldRecord : animal.getVaccinationRecords()) {
+                        if (!oldRecord.isCompleted()) {
+                                String oldVaccineLower = oldRecord.getVaccineName().trim().toLowerCase(trLocale);
+                                if (oldVaccineLower.equals(newVaccineLower)
+                                                || (oldRecord.getNextDueDate() != null
+                                                                && !oldRecord.getNextDueDate()
+                                                                                .isAfter(LocalDate.now()))) {
+                                        oldRecord.setCompleted(true);
+                                }
+                        }
+                }
+
                 VaccinationRecord record = new VaccinationRecord();
                 record.setVaccineName(dto.vaccineName());
                 record.setAppliedDate(dto.appliedDate());
@@ -226,6 +310,25 @@ public class AnimalService {
         public InseminationDto addInsemination(Long animalId, InseminationDto dto) {
                 Animal animal = animalRepository.findById(animalId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Hayvan bulunamadı: " + animalId));
+
+                if (animal.getStatus() != AnimalStatus.AKTIF) {
+                        throw new BusinessException("Satılmış veya ölmüş bir hayvana tohumlama kaydı eklenemez!");
+                }
+
+                if (!"DISI".equalsIgnoreCase(animal.getGender())) {
+                        throw new BusinessException("Sadece dişi hayvanlara tohumlama kaydı eklenebilir!");
+                }
+
+                if (animal.getBirthDate() != null && dto.inseminationDate() != null
+                                && dto.inseminationDate().isBefore(animal.getBirthDate())) {
+                        throw new BusinessException("Tohumlama tarihi (" + dto.inseminationDate()
+                                        + "), hayvanın doğum tarihinden (" + animal.getBirthDate() + ") önce olamaz!");
+                }
+
+                if (dto.expectedBirthDate() != null && dto.inseminationDate() != null
+                                && !dto.expectedBirthDate().isAfter(dto.inseminationDate())) {
+                        throw new BusinessException("Tahmini doğum tarihi, tohumlama tarihinden sonra olmalıdır!");
+                }
 
                 InseminationRecord record = new InseminationRecord();
                 record.setInseminationDate(dto.inseminationDate());
@@ -257,7 +360,29 @@ public class AnimalService {
                         throw new BusinessException("Toplu Aşılama İçin Seçilen Hayvanlar Bulunamadı");
                 }
 
+                Locale trLocale = Locale.forLanguageTag("tr");
+                String newVaccineLower = dtos.vaccineName().trim().toLowerCase(trLocale);
+
                 for (Animal animal : targetAnimal) {
+                        if (animal.getBirthDate() != null && dtos.appliedDate() != null
+                                        && dtos.appliedDate().isBefore(animal.getBirthDate())) {
+                                throw new BusinessException(animal.getTagNumber()
+                                                + " küpeli hayvanın doğum tarihi (" + animal.getBirthDate()
+                                                + "), seçilen aşı tarihinden (" + dtos.appliedDate() + ") sonradır!");
+                        }
+                        for (VaccinationRecord oldRecord : animal.getVaccinationRecords()) {
+                                if (!oldRecord.isCompleted()) {
+                                        String oldVaccineLower = oldRecord.getVaccineName().trim()
+                                                        .toLowerCase(trLocale);
+                                        if (oldVaccineLower.equals(newVaccineLower)
+                                                        || (oldRecord.getNextDueDate() != null
+                                                                        && !oldRecord.getNextDueDate()
+                                                                                        .isAfter(LocalDate.now()))) {
+                                                oldRecord.setCompleted(true);
+                                        }
+                                }
+                        }
+
                         VaccinationRecord record = new VaccinationRecord();
                         record.setVaccineName(dtos.vaccineName());
                         record.setAppliedDate(dtos.appliedDate());

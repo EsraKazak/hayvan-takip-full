@@ -49,6 +49,16 @@ export const BulkVaccinationModal: React.FC<BulkVaccinationModalProps> = ({
     }
   }, [isOpen, preselectedSectionId, selectedAnimals]);
 
+  // Seçili hayvanlar arasındaki en geç doğum tarihini (en genç hayvanı) bul
+  const minAllowedDate =
+    targetMode === "SELECTED" && selectedAnimals.length > 0
+      ? selectedAnimals
+          .map((a) => a.birthDate)
+          .filter(Boolean)
+          .sort()
+          .pop()
+      : undefined;
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -206,6 +216,7 @@ export const BulkVaccinationModal: React.FC<BulkVaccinationModalProps> = ({
               <input
                 type="date"
                 required
+                min={minAllowedDate}
                 value={appliedDate}
                 onChange={(e) => setAppliedDate(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"

@@ -10,10 +10,12 @@ import {
   Baby,
   LogOut,
   AlertCircle,
+  Check,
 } from "lucide-react";
 import { notificationApi } from "../api/notificationApi";
 import type { NotificationItemDTO } from "../types";
 import { NotificationModal } from "./NotificationModal";
+import { toast } from "sonner";
 
 interface NavbarProps {
   activeTab: "dashboard" | "sections" | "animals";
@@ -29,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [alerts, setAlerts] = useState<NotificationItemDTO[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isRecipientModalOpen, setIsRecipientModalOpen] = useState(false);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchAlerts = async () => {
@@ -39,9 +42,24 @@ export const Navbar: React.FC<NavbarProps> = ({
       // Sessizce geç (arka plan kontrolü)
     }
   };
-
   useEffect(() => {
     fetchAlerts();
+
+    // 1. Her 30 saniyede bir arka planda bildirimleri güncelle
+    const intervalId = setInterval(() => {
+      fetchAlerts();
+    }, 30000);
+
+    // 2. Kullanıcı tarayıcı sekmesine geri döndüğünde veya özel güncelleme tetiklendiğinde yenile
+    const handleRefresh = () => fetchAlerts();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("alerts:refresh", handleRefresh);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("alerts:refresh", handleRefresh);
+    };
   }, [activeTab]);
 
   // Açılır menü dışına tıklanınca kapat
@@ -57,6 +75,21 @@ export const Navbar: React.FC<NavbarProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleDismissAlert = async (e: React.MouseEvent, alertId: string) => {
+    e.stopPropagation(); // Satıra tıklayıp Hayvanlar sayfasına gitmesini engeller
+    try {
+      setDismissingId(alertId);
+      await notificationApi.dismissAlert(alertId);
+      setAlerts((prev) => prev.filter((item) => item.id !== alertId));
+      toast.success("Bildirim tamamlandı olarak kapatıldı.");
+      window.dispatchEvent(new Event("alerts:refresh"));
+    } catch {
+      toast.error("Bildirim kapatılırken hata oluştu.");
+    } finally {
+      setDismissingId(null);
+    }
+  };
 
   const overdueCount = alerts.filter((a) => a.severity === "OVERDUE").length;
 
@@ -117,7 +150,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Bildirim Zili Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={() => setIsDropdownOpen((prev) => !prev)}
+                  onClick={() => {
+                    const nextState = !isDropdownOpen;
+                    setIsDropdownOpen(nextState);
+                    if (nextState) fetchAlerts(); // Zile her basıldığında güncel listeyi çek
+                  }}
                   title="Yaklaşan ve Geciken Uyarılar"
                   className="relative p-2 rounded-lg text-emerald-100 hover:bg-emerald-600 transition-colors"
                 >
@@ -165,7 +202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 setActiveTab("animals");
                                 setIsDropdownOpen(false);
                               }}
-                              className="p-3 hover:bg-gray-50 cursor-pointer flex items-start gap-3 transition-colors"
+                              className="p-3 hover:bg-gray-50 cursor-pointer flex items-start gap-3 transition-colors group"
                             >
                               <div
                                 className={`p-2 rounded-lg mt-0.5 ${
@@ -181,14 +218,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-bold text-xs text-gray-900">
+                                <div className="flex justify-between items-center gap-2">
+                                  <span className="font-bold text-xs text-gray-900 truncate">
                                     {item.animalTagNumber}{" "}
                                     {item.animalName
                                       ? `(${item.animalName})`
                                       : ""}
                                   </span>
-                                  <span className="text-[11px] text-gray-400">
+                                  <span className="text-[11px] text-gray-400 shrink-0">
                                     {item.sectionName}
                                   </span>
                                 </div>
@@ -214,6 +251,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   )}
                                 </div>
                               </div>
+
+                              {/* Tek Tıkla Okundu / Tamamlandı Kapat Butonu */}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDismissAlert(e, item.id)}
+                                disabled={dismissingId === item.id}
+                                title="Tamamlandı / Okundu Olarak Kapat"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors shrink-0 self-center disabled:opacity-50"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
                             </div>
                           );
                         })
@@ -231,6 +279,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Mail className="h-5 w-5" />
               </button>
+
               {/* Çıkış Yap Butonu */}
               <button
                 onClick={onLogout}

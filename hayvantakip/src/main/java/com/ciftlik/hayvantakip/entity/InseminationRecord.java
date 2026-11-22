@@ -25,4 +25,7 @@ public class InseminationRecord {
     @JoinColumn(name = "animal_id", nullable = false)
     private Animal animal;
 
+    @Column(nullable = false)
+    private boolean alertDismissed = false;
+
 }

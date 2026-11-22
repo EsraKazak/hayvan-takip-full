@@ -281,7 +281,10 @@ export const SectionsPage: React.FC = () => {
         onClose={() => setBulkVaccineSectionId(null)}
         sections={sections}
         preselectedSectionId={bulkVaccineSectionId}
-        onSuccess={fetchSections}
+        onSuccess={() => {
+          fetchSections();
+          window.dispatchEvent(new Event("alerts:refresh"));
+        }}
       />
     </div>
   );

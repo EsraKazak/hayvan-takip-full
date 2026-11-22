@@ -11,7 +11,7 @@ import { X, Syringe, Heart, Tag, User, Plus } from "lucide-react";
 interface AnimalDetailModalProps {
   animal: AnimalResponseDTO | null;
   onClose: () => void;
-  onRefresh?: () => void; // Veri eklendiğinde ana listeyi yenilemek için
+  onRefresh?: () => void;
 }
 
 export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
@@ -39,6 +39,9 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
 
   if (!animal) return null;
 
+  const isActive = animal.animalStatus === "AKTIF";
+  const isFemale = animal.gender === "DISI";
+
   const vaccineList: VaccinationDTO[] =
     animal.vaccinations || animal.vaccinationRecords || [];
   const inseminationList: InseminationDTO[] =
@@ -47,6 +50,12 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
   // Aşı Kaydetme
   const handleAddVaccination = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (animal.birthDate && appliedDate < animal.birthDate) {
+      toast.error(
+        `Aşı tarihi hayvanın doğum tarihinden (${animal.birthDate}) önce olamaz!`,
+      );
+      return;
+    }
     try {
       const newVac = await animalApi.addVaccination(animal.id, {
         vaccineName,
@@ -57,16 +66,15 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
 
       toast.success(`${vaccineName} aşısı başarıyla kaydedildi!`);
 
-      // Yerel state'i güncelle
       if (!animal.vaccinations) animal.vaccinations = [];
       animal.vaccinations.push(newVac as VaccinationDTO);
 
-      // Formu sıfırla
       setVaccineName("");
       setAppliedDate("");
       setNextDueDate("");
       setVacNotes("");
       setShowVacForm(false);
+      window.dispatchEvent(new Event("alerts:refresh"));
       if (onRefresh) onRefresh();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Aşı eklenirken hata oluştu.");
@@ -76,6 +84,12 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
   // Tohumlanma Kaydetme
   const handleAddInsemination = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (animal.birthDate && inseminationDate < animal.birthDate) {
+      toast.error(
+        `Tohumlama tarihi hayvanın doğum tarihinden (${animal.birthDate}) önce olamaz!`,
+      );
+      return;
+    }
     try {
       const newIns = await animalApi.addInsemination(animal.id, {
         inseminationDate,
@@ -86,16 +100,15 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
 
       toast.success("Tohumlanma/Gebelik kaydı eklendi!");
 
-      // Yerel state'i güncelle
       if (!animal.inseminations) animal.inseminations = [];
       animal.inseminations.push(newIns as InseminationDTO);
 
-      // Formu sıfırla
       setInseminationDate("");
       setExpectedBirthDate("");
       setInsStatus("BEKLEMEDE");
       setBullInfo("");
       setShowInsForm(false);
+      window.dispatchEvent(new Event("alerts:refresh"));
       if (onRefresh) onRefresh();
     } catch (err: any) {
       toast.error(
@@ -134,6 +147,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
         {/* Tab Navigation */}
         <div className="flex border-b bg-gray-50 px-4 pt-2">
           <button
+            type="button"
             onClick={() => setActiveTab("info")}
             className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
               activeTab === "info"
@@ -144,6 +158,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
             <User className="h-4 w-4" /> Kimlik & Genel
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("vaccines")}
             className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
               activeTab === "vaccines"
@@ -151,25 +166,22 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                 : "border-transparent text-gray-500"
             }`}
           >
-            <Syringe className="h-4 w-4" />
-            <button onClick={() => setActiveTab("vaccines")}>
-              Aşı Geçmişi ({vaccineList.length})
-            </button>
+            <Syringe className="h-4 w-4" /> Aşı Geçmişi ({vaccineList.length})
           </button>
-          <button
-            onClick={() => setActiveTab("insemination")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
-              activeTab === "insemination"
-                ? "border-emerald-600 text-emerald-700 bg-white rounded-t-lg"
-                : "border-transparent text-gray-500"
-            }`}
-          >
-            <Heart className="h-4 w-4" /> Tohumlanma / Gebelik (
-            <button onClick={() => setActiveTab("insemination")}>
-              ({inseminationList.length})
+          {isFemale && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("insemination")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${
+                activeTab === "insemination"
+                  ? "border-emerald-600 text-emerald-700 bg-white rounded-t-lg"
+                  : "border-transparent text-gray-500"
+              }`}
+            >
+              <Heart className="h-4 w-4" /> Tohumlanma / Gebelik (
+              {inseminationList.length})
             </button>
-            )
-          </button>
+          )}
         </div>
 
         {/* Modal İçeriği */}
@@ -227,17 +239,19 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                 <h3 className="font-bold text-gray-700 text-sm">
                   Aşı Kayıtları
                 </h3>
-                <button
-                  onClick={() => setShowVacForm(!showVacForm)}
-                  className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-medium transition-all"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {showVacForm ? "Formu Kapat" : "Yeni Aşı Ekle"}
-                </button>
+                {isActive && (
+                  <button
+                    onClick={() => setShowVacForm(!showVacForm)}
+                    className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-medium transition-all"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {showVacForm ? "Formu Kapat" : "Yeni Aşı Ekle"}
+                  </button>
+                )}
               </div>
 
               {/* Aşı Ekleme Formu */}
-              {showVacForm && (
+              {showVacForm && isActive && (
                 <form
                   onSubmit={handleAddVaccination}
                   className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-lg space-y-3"
@@ -263,6 +277,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                       <input
                         type="date"
                         required
+                        min={animal.birthDate || undefined}
                         value={appliedDate}
                         onChange={(e) => setAppliedDate(e.target.value)}
                         className="w-full px-3 py-1.5 border rounded-md text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -274,6 +289,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                       </label>
                       <input
                         type="date"
+                        min={appliedDate || animal.birthDate || undefined}
                         value={nextDueDate}
                         onChange={(e) => setNextDueDate(e.target.value)}
                         className="w-full px-3 py-1.5 border rounded-md text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -337,23 +353,25 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
           )}
 
           {/* TAB 3: TOHUMLANMA GEÇMİŞİ & FORMU */}
-          {activeTab === "insemination" && (
+          {activeTab === "insemination" && isFemale && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-gray-700 text-sm">
                   Tohumlanma & Gebelik Kayıtları
                 </h3>
-                <button
-                  onClick={() => setShowInsForm(!showInsForm)}
-                  className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-all"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {showInsForm ? "Formu Kapat" : "Yeni Kayıt Ekle"}
-                </button>
+                {isActive && (
+                  <button
+                    onClick={() => setShowInsForm(!showInsForm)}
+                    className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-all"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {showInsForm ? "Formu Kapat" : "Yeni Kayıt Ekle"}
+                  </button>
+                )}
               </div>
 
               {/* Tohumlanma Ekleme Formu */}
-              {showInsForm && (
+              {showInsForm && isActive && (
                 <form
                   onSubmit={handleAddInsemination}
                   className="p-4 bg-blue-50/60 border border-blue-200 rounded-lg space-y-3"
@@ -366,6 +384,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                       <input
                         type="date"
                         required
+                        min={animal.birthDate || undefined}
                         value={inseminationDate}
                         onChange={(e) => setInseminationDate(e.target.value)}
                         className="w-full px-3 py-1.5 border rounded-md text-xs focus:ring-2 focus:ring-blue-500 outline-none"
@@ -377,9 +396,10 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                       </label>
                       <input
                         type="date"
+                        min={inseminationDate || animal.birthDate || undefined}
                         value={expectedBirthDate}
                         onChange={(e) => setExpectedBirthDate(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3 py-1.5 border rounded-md text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
                   </div>
@@ -415,7 +435,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                     type="submit"
                     className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md transition-colors"
                   >
-                    Kaydı Temizle & Sakla
+                    Kaydı Sakla
                   </button>
                 </form>
               )}

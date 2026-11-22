@@ -25,4 +25,8 @@ export const notificationApi = {
     const response = await axiosClient.post("/notifications/send-emails");
     return response.data;
   },
+
+  dismissAlert: async (alertId: string): Promise<void> => {
+    await axiosClient.post(`/notifications/alerts/${alertId}/dismiss`);
+  },
 };
