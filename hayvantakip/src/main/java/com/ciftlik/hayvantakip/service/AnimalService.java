@@ -24,6 +24,7 @@ import com.ciftlik.hayvantakip.entity.VaccinationRecord;
 import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.AnimalRepository;
+import com.ciftlik.hayvantakip.repository.InseminationRecordRepository;
 import com.ciftlik.hayvantakip.repository.SectionRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +34,7 @@ public class AnimalService {
 
         private final AnimalRepository animalRepository;
         private final SectionRepository sectionRepository;
+        private final InseminationRecordRepository inseminationRecordRepository;
 
         // İlk boş slot numarasını bulan yardımcı metot
         private Integer findFirstAvailableSlot(Long sectionId, int capacity) {
@@ -340,6 +342,39 @@ public class AnimalService {
                 animal.getInseminationRecords().add(record);
                 animalRepository.save(animal);
                 return dto;
+        }
+
+        // gebelik surumuu değiştirmek için kullandığımız fonksiyon
+        @Transactional
+        public InseminationDto updateInseminationStatus(Long inseminationId, String newStatus) {
+                InseminationRecord record = inseminationRecordRepository.findById(inseminationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Tohumlama kaydı bulunamadı: " + inseminationId));
+
+                if (record.getAnimal().getStatus() != AnimalStatus.AKTIF) {
+                        throw new BusinessException(
+                                        "Satılmış veya ölmüş bir hayvanın tohumlama durumu değiştirilemez!");
+                }
+
+                String normalizedStatus = newStatus.trim().toUpperCase(Locale.forLanguageTag("tr"));
+                record.setStatus(normalizedStatus);
+
+                // Eğer tohumlama tutmadıysa veya doğum gerçekleştiyse artık doğum hatırlatma
+                // uyarısını kapat
+                if ("TUTMADI".equals(normalizedStatus) || "DOGUM_YAPTI".equals(normalizedStatus)
+                                || "IPTAL".equals(normalizedStatus)) {
+                        record.setAlertDismissed(true);
+                } else if ("TUTTU".equals(normalizedStatus) || "BEKLEMEDE".equals(normalizedStatus)) {
+                        record.setAlertDismissed(false);
+                }
+
+                InseminationRecord saved = inseminationRecordRepository.save(record);
+                return new InseminationDto(
+                                saved.getId(),
+                                saved.getInseminationDate(),
+                                saved.getExpectedBirthDate(),
+                                saved.getStatus(),
+                                saved.getBullInfo());
         }
 
         @Transactional

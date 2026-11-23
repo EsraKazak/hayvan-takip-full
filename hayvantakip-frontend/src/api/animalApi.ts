@@ -94,4 +94,17 @@ export const animalApi = {
     );
     return response.data;
   },
+
+  //gebelik durum güncellemesi için
+  updateInseminationStatus: async (
+    inseminationId: number,
+    status: string,
+  ): Promise<InseminationDTO> => {
+    const response = await axiosClient.post<InseminationDTO>(
+      `/animals/inseminations/${inseminationId}/status`,
+      null,
+      { params: { status } },
+    );
+    return response.data;
+  },
 };

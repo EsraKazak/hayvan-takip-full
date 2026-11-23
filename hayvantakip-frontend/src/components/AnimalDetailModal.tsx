@@ -36,6 +36,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
   const [expectedBirthDate, setExpectedBirthDate] = useState("");
   const [insStatus, setInsStatus] = useState("BEKLEMEDE");
   const [bullInfo, setBullInfo] = useState("");
+  const [updatingInsId, setUpdatingInsId] = useState<number | null>(null);
 
   if (!animal) return null;
 
@@ -115,6 +116,37 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
         err.response?.data?.message ||
           "Tohumlanma kaydı eklenirken hata oluştu.",
       );
+    }
+  };
+
+  const handleUpdateInseminationStatus = async (
+    inseminationId: number | undefined,
+    newStatus: string,
+  ) => {
+    if (!inseminationId) return;
+    try {
+      setUpdatingInsId(inseminationId);
+      await animalApi.updateInseminationStatus(inseminationId, newStatus);
+
+      // Yerel state içindeki ilgili kaydın durumunu güncelle
+      const targetList =
+        animal.inseminations || animal.inseminationRecords || [];
+      const targetRecord = targetList.find(
+        (item) => item.id === inseminationId,
+      );
+      if (targetRecord) {
+        targetRecord.status = newStatus;
+      }
+
+      toast.success("Tohumlama durumu güncellendi!");
+      window.dispatchEvent(new Event("alerts:refresh"));
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || "Durum güncellenirken hata oluştu.",
+      );
+    } finally {
+      setUpdatingInsId(null);
     }
   };
 
@@ -449,7 +481,7 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                 inseminationList.map((ins) => (
                   <div
                     key={ins.id || Math.random()}
-                    className="p-3 bg-white border border-gray-100 shadow-sm rounded-lg flex justify-between items-center"
+                    className="p-3 bg-white border border-gray-100 shadow-sm rounded-lg flex justify-between items-center gap-3"
                   >
                     <div>
                       <h4 className="font-bold text-gray-800 text-sm">
@@ -464,17 +496,42 @@ export const AnimalDetailModal: React.FC<AnimalDetailModalProps> = ({
                         </p>
                       )}
                     </div>
-                    <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                        ins.status === "TUTTU"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : ins.status === "TUTMADI"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {ins.status}
-                    </span>
+
+                    {isActive && ins.id ? (
+                      <select
+                        value={ins.status}
+                        disabled={updatingInsId === ins.id}
+                        onChange={(e) =>
+                          handleUpdateInseminationStatus(ins.id, e.target.value)
+                        }
+                        className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
+                          ins.status === "TUTTU"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            : ins.status === "TUTMADI"
+                              ? "bg-red-100 text-red-800 border-red-200"
+                              : ins.status === "DOGUM_YAPTI"
+                                ? "bg-purple-100 text-purple-800 border-purple-200"
+                                : "bg-blue-100 text-blue-800 border-blue-200"
+                        }`}
+                      >
+                        <option value="BEKLEMEDE">BEKLEMEDE</option>
+                        <option value="TUTTU">TUTTU (GEBE)</option>
+                        <option value="TUTMADI">TUTMADI</option>
+                        <option value="DOGUM_YAPTI">DOĞUM YAPTI</option>
+                      </select>
+                    ) : (
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                          ins.status === "TUTTU"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : ins.status === "TUTMADI"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {ins.status}
+                      </span>
+                    )}
                   </div>
                 ))
               )}

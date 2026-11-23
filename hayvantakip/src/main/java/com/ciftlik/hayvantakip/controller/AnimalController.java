@@ -80,4 +80,11 @@ public class AnimalController {
                 count);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/inseminations/{inseminationId}/status")
+    public ResponseEntity<InseminationDto> updateInseminationStatus(
+            @PathVariable Long inseminationId,
+            @RequestParam String status) {
+        return ResponseEntity.ok(animalService.updateInseminationStatus(inseminationId, status));
+    }
 }
