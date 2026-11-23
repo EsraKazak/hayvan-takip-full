@@ -13,10 +13,12 @@ import com.ciftlik.hayvantakip.dto.SectionCreateDto;
 import com.ciftlik.hayvantakip.dto.SectionResponseDto;
 import com.ciftlik.hayvantakip.dto.VaccinationDto;
 import com.ciftlik.hayvantakip.entity.AnimalStatus;
+import com.ciftlik.hayvantakip.entity.Barn;
 import com.ciftlik.hayvantakip.entity.Section;
 import com.ciftlik.hayvantakip.exception.BusinessException;
 import com.ciftlik.hayvantakip.exception.ResourceNotFoundException;
 import com.ciftlik.hayvantakip.repository.AnimalRepository;
+import com.ciftlik.hayvantakip.repository.BarnRepository;
 import com.ciftlik.hayvantakip.repository.SectionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -27,12 +29,30 @@ public class SectionService {
 
         private final SectionRepository sectionRepository;
         private final AnimalRepository animalRepository;
+        private final BarnRepository barnRepository;
 
         @Transactional
         public SectionResponseDto createSection(SectionCreateDto createDto) {
+                if (createDto.capacity() == null || createDto.capacity() < 1) {
+                        throw new BusinessException("Padok kapasitesi en az 1 olmalıdır!");
+                }
+
+                String type = (createDto.padokType() != null && !createDto.padokType().isBlank())
+                                ? createDto.padokType().trim().toUpperCase(java.util.Locale.ROOT)
+                                : "IKILI"; // Varsayılan: Çift Sıra
+
+                Barn barn = null;
+                if (createDto.barnId() != null) {
+                        barn = barnRepository.findById(createDto.barnId())
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Belirtilen ahır bulunamadı: " + createDto.barnId()));
+                }
+
                 Section section = new Section();
-                section.setName(createDto.name());
+                section.setName(createDto.name().trim());
                 section.setCapacity(createDto.capacity());
+                section.setPadokType(type);
+                section.setBarn(barn);
 
                 Section savedSection = sectionRepository.save(section);
                 return convertToDto(savedSection);
@@ -126,11 +146,18 @@ public class SectionService {
                 int activeAnimalCount = (int) animalRepository.countBySectionIdAndStatus(section.getId(),
                                 AnimalStatus.AKTIF);
 
+                Long barnId = section.getBarn() != null ? section.getBarn().getId() : null;
+                String barnName = section.getBarn() != null ? section.getBarn().getName() : null;
+                String padokType = section.getPadokType() != null ? section.getPadokType() : "COKLU";
+
                 return new SectionResponseDto(
                                 section.getId(),
                                 section.getName(),
                                 section.getCapacity(),
                                 activeAnimalCount,
+                                barnId,
+                                barnName,
+                                padokType,
                                 animalDtos);
         }
 }

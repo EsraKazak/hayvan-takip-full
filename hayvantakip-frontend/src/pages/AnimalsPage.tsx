@@ -63,7 +63,17 @@ export const AnimalsPage: React.FC = () => {
   const [selectedAnimalIds, setSelectedAnimalIds] = useState<number[]>([]);
   const [isBulkVaccineModalOpen, setIsBulkVaccineModalOpen] = useState(false);
 
-  // Verileri Çekme
+  const formatSectionLabel = (sec: SectionResponseDTO) => {
+    const barnPrefix = sec.barnName ? `[${sec.barnName}] ` : "";
+    const typeSuffix =
+      sec.padokType === "TEKLI" || sec.capacity === 1
+        ? " • Tekli"
+        : sec.padokType === "IKILI" || sec.capacity === 2
+          ? " • İkili"
+          : "";
+    return `${barnPrefix}${sec.name}${typeSuffix}`;
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -91,7 +101,6 @@ export const AnimalsPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // Kulak No ile Tekli Arama
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTag.trim()) {
@@ -116,7 +125,6 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Yeni Hayvan Kaydetme
   const handleCreateAnimal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSectionId || !gender) {
@@ -138,7 +146,6 @@ export const AnimalsPage: React.FC = () => {
 
       toast.success(`${tagNumber} küpe numaralı hayvan başarıyla kaydedildi!`);
 
-      // Formu Sıfırla
       setTagNumber("");
       setName("");
       setBirthDate("");
@@ -156,7 +163,6 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Padok Transferi
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAnimal || !targetSectionId) return;
@@ -181,14 +187,12 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Durum Seçildiğinde Onay Modalını Aç
   const handleStatusSelect = (animal: AnimalResponseDTO, value: string) => {
     if (value === "SATILDI" || value === "OLDU") {
       setPendingStatusChange({ animal, newStatus: value });
     }
   };
 
-  // Onay Modalından "Evet, Onayla" Denildiğinde Kaydet
   const confirmStatusChange = async () => {
     if (!pendingStatusChange) return;
     try {
@@ -213,7 +217,6 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Filtreleri Sıfırlama
   const handleResetFilters = () => {
     setSearchTag("");
     setSelectedStatusFilter("ALL");
@@ -221,7 +224,6 @@ export const AnimalsPage: React.FC = () => {
     fetchData();
   };
 
-  // CANLI FİLTRELEME MANTIĞI
   const filteredAnimals = animals.filter((animal) => {
     const matchesStatus =
       selectedStatusFilter === "ALL" ||
@@ -234,7 +236,6 @@ export const AnimalsPage: React.FC = () => {
     return matchesStatus && matchesSection;
   });
 
-  // Listede o an görünen sadece AKTİF hayvanlar (Toplu aşılama seçimi için)
   const activeFilteredAnimals = filteredAnimals.filter(
     (a) => a.animalStatus === "AKTIF",
   );
@@ -259,12 +260,19 @@ export const AnimalsPage: React.FC = () => {
     }
   };
 
-  // Toplu aşılama modalına sadece aktif olan seçili hayvanları gönder
   const selectedAnimalObjects = animals.filter(
     (a) => selectedAnimalIds.includes(a.id) && a.animalStatus === "AKTIF",
   );
 
   const todayStr = new Date().toISOString().split("T")[0];
+
+  const getSectionDisplayName = (animal: AnimalResponseDTO) => {
+    const foundSec = sections.find((s) => s.id === animal.sectionId);
+    if (foundSec) {
+      return `${foundSec.barnName ? `${foundSec.barnName} • ` : ""}${foundSec.name}`;
+    }
+    return animal.sectionName || `Padok #${animal.sectionId}`;
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -299,7 +307,6 @@ export const AnimalsPage: React.FC = () => {
 
       {/* ARAMA & FİLTRELEME ÇUBUĞU */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
-        {/* Sol Taraf: Arama Kutusu */}
         <form onSubmit={handleSearch} className="flex gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
@@ -319,14 +326,12 @@ export const AnimalsPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Sağ Taraf: Dropdown Filtreler */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500">
             <Filter className="h-4 w-4" />
             Filtrele:
           </div>
 
-          {/* Durum Filtresi */}
           <select
             value={selectedStatusFilter}
             onChange={(e) => setSelectedStatusFilter(e.target.value)}
@@ -338,21 +343,19 @@ export const AnimalsPage: React.FC = () => {
             <option value="OLDU">ÖLDÜ</option>
           </select>
 
-          {/* Padok Filtresi */}
           <select
             value={selectedSectionFilter}
             onChange={(e) => setSelectedSectionFilter(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-gray-700"
           >
-            <option value="ALL">Tüm Padoklar</option>
+            <option value="ALL">Tüm Ahır / Padoklar</option>
             {sections.map((sec) => (
               <option key={sec.id} value={sec.id}>
-                {sec.name}
+                {formatSectionLabel(sec)}
               </option>
             ))}
           </select>
 
-          {/* Filtreleri Sıfırla Butonu */}
           {(selectedStatusFilter !== "ALL" ||
             selectedSectionFilter !== "ALL" ||
             searchTag !== "") && (
@@ -402,7 +405,7 @@ export const AnimalsPage: React.FC = () => {
                   <th className="py-3 px-4">Adı</th>
                   <th className="py-3 px-4">Cinsiyet / Irk</th>
                   <th className="py-3 px-4">Doğum Tarihi</th>
-                  <th className="py-3 px-4">Bulunduğu Padok</th>
+                  <th className="py-3 px-4">Ahır / Padok</th>
                   <th className="py-3 px-4">Anne Küpe No</th>
                   <th className="py-3 px-4">Durum</th>
                   <th className="py-3 px-4 text-right">Aksiyonlar</th>
@@ -418,6 +421,7 @@ export const AnimalsPage: React.FC = () => {
                 ) : (
                   filteredAnimals.map((animal) => {
                     const isActive = animal.animalStatus === "AKTIF";
+                    const locationName = getSectionDisplayName(animal);
                     return (
                       <tr
                         key={animal.id}
@@ -468,16 +472,14 @@ export const AnimalsPage: React.FC = () => {
                         <td className="py-3 px-4 font-medium">
                           {isActive ? (
                             <span className="text-emerald-700">
-                              {animal.sectionName ||
-                                `Padok #${animal.sectionId}`}
+                              {locationName}
                               {animal.slotNumber
                                 ? ` (Durak #${animal.slotNumber})`
                                 : ""}
                             </span>
                           ) : (
                             <span className="text-gray-400 text-xs">
-                              {animal.sectionName ||
-                                `Padok #${animal.sectionId}`}
+                              {locationName}
                               {animal.slotNumber
                                 ? ` • Durak #${animal.slotNumber}`
                                 : ""}
@@ -629,7 +631,6 @@ export const AnimalsPage: React.FC = () => {
               Yeni Hayvan Ekle
             </h2>
             <form onSubmit={handleCreateAnimal} className="space-y-4">
-              {/* Kulak Küpe No */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Kulak Küpe No (*)
@@ -644,7 +645,6 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Cinsiyet (*) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cinsiyet (*)
@@ -662,7 +662,6 @@ export const AnimalsPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Hayvan Adı (Opsiyonel) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Hayvan Adı (Opsiyonel)
@@ -676,7 +675,6 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Irkı / Türü (Opsiyonel) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Irkı / Cinsi (Opsiyonel)
@@ -690,7 +688,6 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Doğum Tarihi */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Doğum Tarihi (*)
@@ -723,10 +720,9 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Bulunacağı Padok */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bulunacağı Padok (*)
+                  Bulunacağı Ahır / Padok (*)
                 </label>
                 <select
                   required
@@ -734,21 +730,20 @@ export const AnimalsPage: React.FC = () => {
                   onChange={(e) => setSelectedSectionId(Number(e.target.value))}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                 >
-                  <option value="">Padok Seçin...</option>
+                  <option value="">Ahır / Padok Seçin...</option>
                   {sections.map((sec) => {
                     const isFull =
                       (sec.currentAnimalCount ?? 0) >= sec.capacity;
                     return (
                       <option key={sec.id} value={sec.id} disabled={isFull}>
-                        {sec.name} ({sec.currentAnimalCount ?? 0}/{sec.capacity}
-                        ) {isFull ? "- DOLU" : ""}
+                        {formatSectionLabel(sec)} ({sec.currentAnimalCount ?? 0}
+                        /{sec.capacity}) {isFull ? "- DOLU" : ""}
                       </option>
                     );
                   })}
                 </select>
               </div>
 
-              {/* Anne Hayvan */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Anne Hayvan (Opsiyonel)
@@ -765,16 +760,12 @@ export const AnimalsPage: React.FC = () => {
                   <option value="">Anne Seçilmedi</option>
                   {animals
                     .filter((m) => {
-                      // 1. Sadece dişi hayvanlar anne olabilir
                       if (m.gender !== "DISI" && m.gender) return false;
-                      // 2. Satılmış hayvanları gizle
                       if (m.animalStatus === "SATILDI") return false;
-                      // 3. Ölmüşse: yalnızca buzağının doğum tarihi annenin ölüm tarihinden önce/aynı gün ise göster
                       if (m.animalStatus === "OLDU") {
                         if (!m.deathDate || !birthDate) return false;
                         if (birthDate > m.deathDate) return false;
                       }
-                      // 4. Annenin doğum tarihi girilen doğum tarihinden büyük veya eşitse gizle
                       if (
                         m.birthDate &&
                         birthDate &&
@@ -793,7 +784,6 @@ export const AnimalsPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Durak / Slot Numarası (Opsiyonel) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Durak / Slot No (Opsiyonel)
@@ -801,7 +791,7 @@ export const AnimalsPage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  placeholder="Örn: 1, 2, 3..."
+                  placeholder="Boş bırakılırsa ilk boş durağa atanır"
                   value={slotNumber}
                   onChange={(e) =>
                     setSlotNumber(e.target.value ? Number(e.target.value) : "")
@@ -810,7 +800,6 @@ export const AnimalsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Butonlar */}
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
@@ -840,13 +829,13 @@ export const AnimalsPage: React.FC = () => {
             </h2>
             <p className="text-sm text-gray-600 mb-4">
               <span className="font-semibold">{selectedAnimal.tagNumber}</span>{" "}
-              küpe numaralı hayvanı yeni padoğuna transfer edin.
+              küpe numaralı hayvanı yeni ahır/padoğuna transfer edin.
             </p>
 
             <form onSubmit={handleTransfer} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hedef Padok (*)
+                  Hedef Ahır / Padok (*)
                 </label>
                 <select
                   required
@@ -854,7 +843,7 @@ export const AnimalsPage: React.FC = () => {
                   onChange={(e) => setTargetSectionId(Number(e.target.value))}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 >
-                  <option value="">Hedef Padok Seçin...</option>
+                  <option value="">Hedef Ahır / Padok Seçin...</option>
                   {sections.map((sec) => {
                     const isCurrent = sec.id === selectedAnimal.sectionId;
                     const isFull =
@@ -862,8 +851,8 @@ export const AnimalsPage: React.FC = () => {
                     const isDisabled = isFull && !isCurrent;
                     return (
                       <option key={sec.id} value={sec.id} disabled={isDisabled}>
-                        {sec.name} ({sec.currentAnimalCount ?? 0}/{sec.capacity}
-                        ){" "}
+                        {formatSectionLabel(sec)} ({sec.currentAnimalCount ?? 0}
+                        /{sec.capacity}){" "}
                         {isCurrent
                           ? "- (Mevcut Padok)"
                           : isFull
@@ -882,7 +871,7 @@ export const AnimalsPage: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  placeholder="Örn: 1, 2, 3..."
+                  placeholder="Boş bırakılırsa ilk boş durağa yerleşir"
                   value={targetSlotNumber}
                   onChange={(e) =>
                     setTargetSlotNumber(
@@ -891,9 +880,6 @@ export const AnimalsPage: React.FC = () => {
                   }
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Boş bırakılırsa sıradaki uygun alana yerleşir.
-                </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

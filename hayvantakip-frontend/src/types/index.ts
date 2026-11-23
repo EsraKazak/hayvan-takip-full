@@ -1,12 +1,15 @@
 //Hayvan durumu backend deki karşılığı
 export type AnimalStatus = "AKTIF" | "SATILDI" | "OLDU";
 export type Gender = "ERKEK" | "DISI";
+export type PadokType = "TEKLI" | "IKILI"; // ahır tipini belirlemek için kullanılır
 
 //section padok dtoları
 //POST /api/sections için giden istek body'si
 export interface SectionCreateDTO {
   name: string;
   capacity: number;
+  barnId?: number | null;
+  padokType: PadokType;
 }
 
 export interface SectionResponseDTO {
@@ -14,6 +17,9 @@ export interface SectionResponseDTO {
   name: string;
   capacity: number;
   currentAnimalCount: number; //padok doluluk oranını hesaplamak için gerekli
+  barnId?: number | null;
+  barnName?: string | null;
+  padokType?: PadokType;
   animals?: AnimalResponseDTO[];
 }
 
@@ -102,4 +108,9 @@ export interface RecipientDTO {
   receiveVaccinationAlerts: boolean;
   receiveBirthAlerts: boolean;
   active?: boolean;
+}
+export interface BarnDTO {
+  id: number;
+  name: string;
+  description?: string | null;
 }

@@ -27,6 +27,13 @@ public class Section {
     @Column(nullable = false)
     private Integer capacity;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "barn_id")
+    private Barn barn;
+
+    @Column(name = "padok_type", nullable = false, length = 20)
+    private String padokType = "COKLU";
+
     @OneToMany(mappedBy = "section", cascade = CascadeType.ALL)
     private List<Animal> animals;
 
